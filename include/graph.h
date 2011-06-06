@@ -6,13 +6,11 @@
 #include "graphKernel/objectSlab.h"
 
 typedef struct{
-	int id;
 	double lat;
 	double lon;
 }Vertex;
 
 typedef struct{
-	int id;
 	Vertex * v1;
 	Vertex * v2;
 }Edge;
@@ -23,8 +21,8 @@ typedef struct{
 		ObjectSlab * vertexSlab;
 		ObjectSlab * edgeSlab;
 	#else
-		void * vertices;
-		void * edges;
+		Vertex * vertices;
+		Edge * edges;
 	#endif
 	
 	char * graphName;

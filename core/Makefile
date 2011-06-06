@@ -1,7 +1,7 @@
 all: core
 
 core: graph.o server.c jsonProcessing.o objectSlab.o
-	gcc -DSERVER --std=gnu99 -g -o core server.c graph.o jsonProcessing.o objectSlab.o -lyajl
+	gcc -DSERVER --std=gnu99 -g -o core server.c graph.o jsonProcessing.o objectSlab.o -lyajl -lrt
 
 graph.o: graph.c
 	gcc -DSERVER --std=gnu99 -g -c graph.c -o graph.o

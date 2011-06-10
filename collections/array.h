@@ -17,7 +17,7 @@ typedef struct{
 	int currentObjectsAllocated;
 }ArrayHdr;
 
-Array * array_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize);
+Array * array_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize, int callingProcess);
 
 void * array_addObject(Array * array, void * object);
 

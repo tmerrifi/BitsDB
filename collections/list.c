@@ -6,9 +6,9 @@
 #include "array.h"
 #include "list.h"
 
-Lists * lists_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize){
+Lists * lists_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize, int callingProcess){
 	Lists * lists = malloc(sizeof(Lists));
-	return (Lists *)(array_init(segmentName, initAddress, sizeOfType, slabIncrementSize));
+	return (Lists *)(array_init(segmentName, initAddress, sizeOfType, slabIncrementSize, callingProcess));
 }
 
 List * lists_addList(Lists * lists){

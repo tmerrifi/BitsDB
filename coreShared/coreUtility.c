@@ -21,6 +21,12 @@ void * coreUtil_openSharedMemory(char * segmentName, void * address, int default
 	int open_flags = (callingProcess == SHM_CLIENT) ?  O_RDONLY : O_CREAT | O_RDWR;
 	int mmap_prots = (callingProcess == SHM_CLIENT) ? PROT_READ : PROT_READ|PROT_WRITE;
 	void * mem = NULL;
+	
+	int tmp_fd = 0;		//to allow people to pass in NULL just in case they don't care about getting back the file descriptor
+	if (!fd){		
+		fd = &tmp_fd;		
+	}
+	
 	*fd = shm_open(segmentName, open_flags, 0777);
 	if (*fd != -1){
 		int sizeInBytes=coreUtil_getFileSize(*fd);
@@ -34,4 +40,38 @@ void * coreUtil_openSharedMemory(char * segmentName, void * address, int default
 	}
 	return mem;
 }
+
+void coreUtil_closeSharedMemory(void * addr, int mappingSize, int fd){
+	if (munmap(addr, mappingSize) == -1){
+		perror("unmapping (closing) the slab failed");
+	}
+	close(fd);	
+}
+
+void * coreUtil_resizeSharedMemory(void * addr, int currentMappingSize, int newMappingSize, int fd){
+	void * mem = NULL;
+	if (munmap(addr, currentMappingSize) == -1){
+		perror("unmapping (closing) the slab failed");
+	}
+	else if (ftruncate(fd, newMappingSize) == -1) {
+		perror("error resizing the file (ftruncate)");
+	}
+	else {
+		mem = mmap(addr, newMappingSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);	//now map it into memory
+		if ((int)mem == -1){
+			perror("An error occured when mapping a shared memory segment in resize for object slab.");
+		}
+	}
+	
+	return mem;
+}
+
+void coreUtil_removeSharedMemory(char * segmentName){
+	if (shm_unlink(segmentName) == -1){
+		perror("Error unlinking");
+	}
+}
+
+
+
 

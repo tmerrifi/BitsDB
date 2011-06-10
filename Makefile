@@ -1,6 +1,6 @@
 
 CLIENT_HEADERS=clientLibrary/clientGraph.h clientLibrary/message.h
-GLOBAL_HEADERS=include/graph.h include/kernelMessage.h include/global.h include/objectSlab.h coreShared/coreUtility.h graphShared/graphUtility.h
+GLOBAL_HEADERS=include/graph.h include/kernelMessage.h include/global.h include/objectSlab.h coreShared/coreUtility.h graphShared/graphUtility.h collections/array.h collections/collection.h collections/list.h
 
 all: installHeaders clientLibrary core install
 
@@ -11,9 +11,14 @@ tests: clientLibrary core install
 
 install: coreShared clientLibrary core force_look
 	cp clientLibrary/libGraphKernelClient.a /usr/local/lib;
+	cp collections/libBitsDBClientCollections.a /usr/local/lib;
+	cp collections/libBitsDBCoreCollections.a /usr/local/lib;
 
 clientLibrary: installHeaders coreShared graphShared force_look
 	cd clientLibrary; make all;
+
+collections: force_look
+	cd collections; make;
 
 coreShared: force_look	
 	cd coreShared; make;

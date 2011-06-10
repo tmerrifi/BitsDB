@@ -1,7 +1,7 @@
 
 
 #include "collection.h"
-#include "coreUtility.h"
+#include "graphKernel/coreUtility.h"
 
 /*
 DESCRIPTION: Initialize the collection object, this is an abstract class. Open the memory mapped segment and setup all the members
@@ -10,9 +10,9 @@ ARGUMENTS: 	collection - The collection object...instantiated in one of the chil
 			initAddress - the initial address where we (hope) the OS maps the collection
 			defaultSize - What to ftruncate the file to if we are creating it
 */
-void collection_init(Collection * collection, char * segmentName, void * initAddress, int defaultSize){
+void collection_init(Collection * collection, char * segmentName, void * initAddress, int defaultSize, int callingProcess){
 	collection->segmentName=segmentName;
-	collection->mem=coreUtil_openSharedMemory(segmentName, initAddress, defaultSize, SHM_CORE, &(collection->fd));
+	collection->mem=coreUtil_openSharedMemory(segmentName, initAddress, defaultSize, callingProcess, &(collection->fd));
 	collection->sizeOfMapping=coreUtil_getFileSize(collection->fd);
 	collection->vtable.closeCollection=collection_close;
 }

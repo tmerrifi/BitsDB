@@ -10,6 +10,8 @@
 #include "message.h"
 #include "graphKernel/coreUtility.h"
 #include "graphKernel/graphUtility.h"
+#include "graphKernel/array.h"
+#include "graphKernel/list.h"
 
 Graph * mainGraph = NULL;
 
@@ -19,18 +21,17 @@ char * getFileBuffers(char * fileName);
 /********* PUBLIC FUNCTIONS ***************************/
 
 Graph * initGraph(char * graphName){
-	char * edgeSharedMemoryId=graphUtil_getVertexName(graphName);
-	char * verticesSharedMemoryId=graphUtil_getEdgesName(graphName);
+	char * verticesSharedMemoryId=graphUtil_getVertexName(graphName);
+	char * edgeSharedMemoryId=graphUtil_getEdgesName(graphName);
 	
 	if (!mainGraph){
 		KernelMessageHeader * resultHeader = (KernelMessageHeader *)sendMessage(MESSAGE_INIT_GRAPH,graphName);
 		if (resultHeader && resultHeader->result == OP_SUCCEESS){
 			mainGraph=malloc(sizeof(Graph));
-			mainGraph->vertices=coreUtil_openSharedMemory(verticesSharedMemoryId,(void *)0xF0000000, 0, SHM_CLIENT);
-			mainGraph->edges=coreUtil_openSharedMemory(verticesSharedMemoryId,(void *)0xD0000000, 0, SHM_CLIENT);
+			mainGraph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CLIENT);
+			mainGraph->edges = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Edge), 5, SHM_CLIENT);
 		}
 	}
-	
 	return mainGraph;
 }
 
@@ -59,7 +60,6 @@ int addEdges(Graph * graph, char * jsonFileName){
 
 /***** PRIVATE FUNCTIONS**********/
 
-
 //DESCRIPTION: A helper function for reading in a file and filling up a buffer
 char * getFileBuffers(char * fileName){
 	char * buff = NULL;
@@ -72,7 +72,6 @@ char * getFileBuffers(char * fileName){
 		fseek(file,0,0);
 		fread(buff, 1, size, file);			
 	}
-	
 	return buff;
 }
 

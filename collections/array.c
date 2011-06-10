@@ -7,9 +7,9 @@
 
 /******PUBLIC FUNCTIONS*******************/
 
-Array * array_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize){
+Array * array_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize, int callingProcess){
 	Array * array = malloc(sizeof(Array));
-	collection_init((Collection *)array, segmentName, initAddress, slabIncrementSize*sizeOfType + sizeof(ArrayHdr));
+	collection_init((Collection *)array, segmentName, initAddress, slabIncrementSize*sizeOfType + sizeof(ArrayHdr), callingProcess);
 	array->sizeOfType=sizeOfType;
 	array->slabIncrementSize=slabIncrementSize;
 	array->nextFreeSlot=array->base.mem + sizeof(ArrayHdr) + ( ((ArrayHdr *)array->base.mem)->currentObjectsAllocated * sizeOfType);

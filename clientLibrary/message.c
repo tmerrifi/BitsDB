@@ -61,9 +61,10 @@ unsigned char * sendMessage(u_int32_t operationType, char * payload){
     }
    
 	unsigned char * message = (unsigned char *)buildMessage(operationType, payload);	//build the message header
-	if (send(sock, message, ((KernelMessageHeader *)message)->length + sizeof(KernelMessageHeader), 0) > 0)	//the size is calculated from the payload size in the header
+	int sentBytes = send(sock, message, ((KernelMessageHeader *)message)->length + sizeof(KernelMessageHeader), 0);
+	if (sentBytes > 0)	//the size is calculated from the payload size in the header
     {
-    	printf("Message was sent\n");
+    	printf("Message was sent %d\n", sentBytes);
     	unsigned char * resultBuffer = malloc(sizeof(KernelMessageHeader));
     	if (recv(sock, resultBuffer, sizeof(KernelMessageHeader), 0) > 0){
     		printf("Got a result\n");

@@ -8,21 +8,24 @@
 
 #include "graphKernel/graph.h"
 #include "jsonProcessing.h"
-#include "graphKernel/objectSlab.h"
+#include "graphKernel/graphUtility.h"
+#include "graphKernel/coreUtility.h"
+#include "graphKernel/array.h"
+#include "graphKernel/list.h"
 
 Graph * mainGraph = NULL;	//TODO: Get rid of this eventually, we'll need a list (or hash table) of graphs
 
 /*********PRIVATE FUNCTION PROTOTYPES****************************/
 
 void * createVertex(yajl_val node);							//create a new vertex from a json node
-int addToObjectSlab(void * collection, void * object);		//add an object to the objectSlab
+int addObjectToArray(void * collection, void * object);		//add an object to the objectSlab
 
 /*********PUBLIC FUNCTIONS***************************************/
 
 //DESCRIPTION: This function takes a bunch of vertices in json form and adds them to the graph
 int addVertices(Graph * graph, char * json){
 	//TODO: eventually take a graph pointer, for now since we only have one graph just use "mainGraph"
-	 return json_addFromList(json, mainGraph->vertexSlab, createVertex, addToObjectSlab);
+	 return json_addFromList(json, mainGraph->vertices, createVertex, addObjectToArray);
 }
 
 //DESCRIPTION: This function initializes a brand new graph. If the graph (identified by the identifier graphName)
@@ -32,17 +35,14 @@ Graph * initGraph(char * graphName){
 	if (!mainGraph){
 		mainGraph = malloc(sizeof(Graph));	//TODO: just one graph for now, maybe support several eventually
 		
-		char * edgeSharedMemoryId=malloc(strlen(graphName)+strlen("_edges"));
-		char * verticesSharedMemoryId=malloc(strlen(graphName)+strlen("_vertices"));
+		char * verticesSharedMemoryId=graphUtil_getVertexName(graphName);
+		char * edgeSharedMemoryId=graphUtil_getEdgesName(graphName);
 		
-		strncpy(edgeSharedMemoryId,graphName,strlen(graphName));
-		strncpy(verticesSharedMemoryId,graphName,strlen(graphName));
+		mainGraph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CORE);
+		mainGraph->edges = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Edge), 5, SHM_CORE);
 		
-		strncat(edgeSharedMemoryId,"_edges",strlen(graphName)+strlen("_edges"));	//create a unique id for the edge shared memory
-		strncat(verticesSharedMemoryId,"_vertices",strlen(graphName)+strlen("_vertices"));	//create a unique id for the vertices shared memory
-		
-		mainGraph->vertexSlab=initObjectSlab(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5);
-		mainGraph->edgeSlab=initObjectSlab(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Edge), 5);
+		//mainGraph->vertexSlab=initObjectSlab(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5);
+		//mainGraph->edgeSlab=initObjectSlab(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Edge), 5);
 	}
 	return mainGraph;
 }
@@ -71,6 +71,6 @@ void * createVertex(yajl_val node){
 //DESCRIPTION: This is passed to the json processing code so it is not coupled with the object slab.
 //ARGS: collection: the objectSlab
 //		object: the object to be added to the collection
-int addToObjectSlab(void * collection, void * object){
-		return slab_addObject((ObjectSlab *)collection, object);
+int addObjectToArray(void * collection, void * object){
+		return (array_addObject((Array *)collection, object)) ? 1 : 0;
 }

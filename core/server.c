@@ -80,6 +80,7 @@ void demultiplexOperation(ClientMessage * clientMessage, unsigned char * message
 			}
 			else
 			{
+				printf("Failed to add vertices\n");
 				clientMessage->messageHeader->result=OP_FAILED;	
 			}
 			break;
@@ -132,14 +133,17 @@ void server(){
 			sock = accept(server_sock, (struct sockaddr*)&remote_addr, &socklen);
 			checkAndExit(sock,"SERVER: Error getting socket for the client.");
 			theClient.socket=sock;
+			printf("newsocket is %d\n", sock);
 			FD_SET(sock,&readset);
 			FD_SET(sock,&writeset);
 		}
 		if(FD_ISSET(theClient.socket,&rdyset)) {
+			printf("socket is %d\n", theClient.socket);
 			int bufferSize = (theClient.messageHeader != NULL) ? theClient.messageHeader->length : sizeof(KernelMessageHeader);
 			unsigned char * buf=malloc(bufferSize);
 			memset(buf,0,bufferSize);
 			int rec_count = recv(theClient.socket,buf,bufferSize,0);
+			printf("rec_count %d, buffersize %d\n", rec_count, bufferSize);
 			if (rec_count > 0 && theClient.messageHeader == NULL){			//we got the header
 				theClient.messageHeader = (KernelMessageHeader *)buf;
 			}
@@ -161,6 +165,7 @@ void server(){
 				int send_count = send(theClient.socket,theClient.messageHeader,sizeof(KernelMessageHeader),0);
 				if (send_count >= 0){
 						free(theClient.messageHeader);
+						theClient.messageHeader=NULL;
 						theClient.messageToSend=0;
 						printf("sent result\n");
 				}

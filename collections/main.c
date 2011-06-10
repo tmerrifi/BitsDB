@@ -4,6 +4,7 @@
 #include "collection.h"
 #include "array.h"
 #include "list.h"
+#include "graphKernel/coreUtility.h"
 
 int test_addNewObjectsSimple();
 
@@ -29,7 +30,7 @@ int main(){
 
 int test_lists_removeObjects(){
 	lists_deleteSegment("testLists");
-	Lists * lists = lists_init("testLists", (void *)0xA0000000, sizeof(Student), 2);
+	Lists * lists = lists_init("testLists", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	List * ourList = lists_addList(lists);
 	
 	for (int i = 0; i < 10; ++i){
@@ -63,7 +64,7 @@ int test_lists_removeObjects(){
 
 int test_lists_removeListSimple(){
 	lists_deleteSegment("testLists");
-	Lists * lists = lists_init("testLists", (void *)0xA0000000, sizeof(Student), 2);
+	Lists * lists = lists_init("testLists", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	List * ourList = lists_addList(lists);
 	
 	for (int i = 0; i < 10; ++i){
@@ -80,7 +81,7 @@ int test_lists_removeListSimple(){
 
 int test_lists_addObjectsSimple(){
 	lists_deleteSegment("testLists");
-	Lists * lists = lists_init("testLists", (void *)0xA0000000, sizeof(Student), 2);
+	Lists * lists = lists_init("testLists", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	List * ourList = lists_addList(lists);
 	
 	for (int i = 0; i < 10; ++i){
@@ -103,7 +104,7 @@ int test_lists_addObjectsSimple(){
 int test_reallocateFreedObjects(){
 	
 	array_deleteSegment("testArray");
-	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2);
+	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	
 	Student * amber = malloc(sizeof(Student));
 	amber->ssn=33333;
@@ -142,7 +143,7 @@ int test_reallocateFreedObjects(){
 
 int test_freeObjects(){
 	array_deleteSegment("testArray");
-	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2);
+	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	
 	Student * amber = malloc(sizeof(Student));
 	amber->ssn=33333;
@@ -168,7 +169,7 @@ int test_freeObjects(){
 int test_addNewObjectsResize(){
 	//Array * theArray = array_init("uyd2", (void *)0xA0000000, sizeof(Student), 2);
 	array_deleteSegment("testArray");
-	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2);
+	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	
 	Student * amber = malloc(sizeof(Student));
 	amber->ssn=33333;
@@ -199,7 +200,7 @@ int test_addNewObjectsResize(){
 int test_addNewObjectsSimple(){
 	//Array * theArray = array_init("uyd2", (void *)0xA0000000, sizeof(Student), 2);
 	array_deleteSegment("testArray");
-	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2);
+	Array * theArray = array_init("testArray", (void *)0xA0000000, sizeof(Student), 2, SHM_CORE);
 	
 	Student * amber = malloc(sizeof(Student));
 	amber->ssn=33333;

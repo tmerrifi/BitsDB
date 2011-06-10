@@ -43,7 +43,7 @@ ARGUMENTS: 	collection - The collection object...instantiated in one of the chil
 			sizeOfType - The size of the type we are storing
 			slabIncrementSize - when we run out of space, how many objects worth should we increase it?
 */
-void collection_init(Collection * collection, char * segmentName, void * initAddress, int defaultSize);
+void collection_init(Collection * collection, char * segmentName, void * initAddress, int defaultSize, int callingProcess);
 
 void * collection_resize(Collection * collection, int newSize);
 

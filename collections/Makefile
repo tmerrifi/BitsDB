@@ -1,13 +1,13 @@
 all: test
 
-test: list.o array.o collection.o coreUtility.o
-	gcc --std=gnu99 -g -o test main.c collection.o array.o coreUtility.o list.o -lrt;
+test: list.o array.o collection.o
+	gcc --std=gnu99 -g -o test main.c collection.o array.o ../coreShared/coreUtility.o ../graphShared/graphUtility.o list.o -lrt;
 	./test
 
-libCore: list.o array.o collection.o coreUtility.o
+libCore: list.o array.o collection.o
 	ar -rcv libBitsDBCoreCollections.a list.o array.o collection.o
 
-libClient: list.o array.o collection.o coreUtility.o
+libClient: list.o array.o collection.o
 	ar -rcv libBitsDBClientCollections.a list.o array.o collection.o
 
 list.o: list.h array.o collection.o
@@ -18,9 +18,6 @@ array.o: collection.h array.c array.h
 
 collection.o: collection.c collection.h
 	gcc --std=gnu99 -g -c -o collection.o collection.c
-
-coreUtility.o: coreUtility.h
-	gcc --std=gnu99 -g -c -o coreUtility.o coreUtility.c
 
 clean:
 	rm *.o *.a test

@@ -9,8 +9,5 @@ clientGraph.o: clientGraph.c
 message.o: message.c
 	gcc -g --std=gnu99 -c message.c -o message.o;
 
-install:
-	scp *.c *.h tmerri4@192.168.84.228:~/Research/coredb/clientLibrary;
-
 clean:
 	rm -rf *~ *.dSYM *.a *.o

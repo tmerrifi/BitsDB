@@ -27,7 +27,7 @@ typedef struct{
 	CollectionHdr base;
 }ListsHdr;
 
-Lists * lists_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize);
+Lists * lists_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize, int callingProcess);
 
 List * lists_addList(Lists * lists);
 

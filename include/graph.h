@@ -3,7 +3,8 @@
 #define GRAPH_H
 
 #include <stdlib.h>
-#include "graphKernel/objectSlab.h"
+#include "graphKernel/array.h"
+#include "graphKernel/list.h"
 
 typedef struct{
 	double lat;
@@ -17,14 +18,8 @@ typedef struct{
 
 /*The central data structure representing a graph*/
 typedef struct{
-	#ifdef SERVER
-		ObjectSlab * vertexSlab;
-		ObjectSlab * edgeSlab;
-	#else
-		Vertex * vertices;
-		Edge * edges;
-	#endif
-	
+	Array * vertices;
+	Lists * edges;
 	char * graphName;
 	int graphId;
 }Graph;

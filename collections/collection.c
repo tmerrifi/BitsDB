@@ -63,7 +63,6 @@ void * collection_findFree(Collection * collection ){
 	return returnVal;				//return the ptr 
 }
 
-
 void collection_delete(Collection * collection){
 	coreUtil_closeSharedMemory(collection->mem, collection->sizeOfMapping, collection->fd);		//make sure to unmap and close the file first
 	coreUtil_removeSharedMemory(collection->segmentName);
@@ -74,4 +73,7 @@ void collection_deleteSegment(char * segmentName){
 	coreUtil_removeSharedMemory(segmentName);
 }
 
+int collection_getSizeInBytes(Collection * collection){
+	return coreUtil_getFileSize(collection->fd);	
+}
 

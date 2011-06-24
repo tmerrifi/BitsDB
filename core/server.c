@@ -13,6 +13,7 @@
 
 #include "../include/graph.h"
 #include "../include/kernelMessage.h"
+#include "graphKernel/message.h"
 #include "../include/global.h"
 #include "jsonProcessing.h"
 
@@ -23,6 +24,8 @@
 typedef struct{
 	int socket;
 	KernelMessageHeader * messageHeader;
+	void * messagePayload;
+	int payloadLength;
 	int messageToSend;
 }ClientMessage;
 
@@ -53,37 +56,55 @@ struct sockaddr_in * setupSocket(){
 }
 
 //DESCRIPTION: 
-void demultiplexOperation(ClientMessage * clientMessage, unsigned char * messagePayload){
-	printf("hi\n");
+void demultiplexOperation(ClientMessage * clientMessage){
 	int insert_counter=0;
 	int operationType=clientMessage->messageHeader->operationType;
+	int * indices = NULL;
+	int result = 0;
 	clientMessage->messageHeader=calloc(1,sizeof(KernelMessageHeader));		//reallocate a messageHeader to send back
 	clientMessage->messageToSend=1;											//mark it ready to send
 	
 	switch(operationType){
 		case MESSAGE_INIT_GRAPH:
-			if (initGraph((char *)messagePayload)){	//now initialize the graph...for create, the payload is just the name
+			if (initGraph((char *)(clientMessage->messagePayload))){	//now initialize the graph...for create, the payload is just the name
 				printf("Successfully created graph!\n");
-				clientMessage->messageHeader->result=OP_SUCCEESS;
+				clientMessage->messageHeader->operationType=OP_SUCCEESS;
+				clientMessage->messagePayload = NULL;
+				clientMessage->payloadLength = 0;
 			}
 			else
 			{
 				printf("Creation failed\n");	
-				clientMessage->messageHeader->result=OP_FAILED;
+				clientMessage->messageHeader->operationType=OP_FAILED;
 			}
 			break;
 		case MESSAGE_INSERT_VERTICES:
-			insert_counter = addVertices(NULL, (char *)messagePayload);
+			insert_counter = addVerticesFromCount(NULL, *((u_int32_t *)(clientMessage->messagePayload)), &indices);
 			if (insert_counter > 0){	//now initialize the graph...for create, the payload is just the name
 				printf("Successfully add %d vertices\n", insert_counter);
-				clientMessage->messageHeader->result=OP_SUCCEESS;
+				clientMessage->messageHeader->operationType=OP_SUCCEESS;
+				clientMessage->messagePayload = indices;
+				clientMessage->payloadLength = insert_counter * sizeof(int);
 			}
 			else
 			{
 				printf("Failed to add vertices\n");
-				clientMessage->messageHeader->result=OP_FAILED;	
+				clientMessage->messageHeader->operationType=OP_FAILED;	
 			}
 			break;
+		case MESSAGE_INSERT_NEIGHBOR:
+			result = addNeighbor(NULL, 
+							((MessageType_InsertNeighbor *)clientMessage->messagePayload)->v1, 
+							((MessageType_InsertNeighbor *)clientMessage->messagePayload)->v2);
+			if (result){
+				clientMessage->messageHeader->operationType=OP_SUCCEESS;
+				clientMessage->messagePayload = NULL;
+				clientMessage->payloadLength = 0;
+			}
+			else{
+				printf("Insert Neighbor Failed\n");
+				clientMessage->messageHeader->operationType=OP_FAILED;
+			}
 		default:
 			printf("Nutin\n");	
 	}
@@ -147,8 +168,9 @@ void server(){
 			if (rec_count > 0 && theClient.messageHeader == NULL){			//we got the header
 				theClient.messageHeader = (KernelMessageHeader *)buf;
 			}
-			else if (rec_count > 0){									//we got the payload
-				demultiplexOperation(&theClient, buf);
+			else if (rec_count > 0){		
+				theClient.messagePayload=buf;									//we got the payload
+				demultiplexOperation(&theClient);
 				free(buf);
 				printf("done with read\n");
 			}
@@ -162,12 +184,16 @@ void server(){
 		}
 		if (FD_ISSET(theClient.socket,&wset)){
 			if (theClient.messageToSend){
-				int send_count = send(theClient.socket,theClient.messageHeader,sizeof(KernelMessageHeader),0);
+				unsigned char * theMessage = 
+					buildMessage(theClient.messageHeader->operationType, (char *)theClient.messagePayload, theClient.payloadLength);
+				
+				int send_count = send(theClient.socket,theMessage,theClient.payloadLength  + sizeof(KernelMessageHeader),0);
 				if (send_count >= 0){
+						print_debug_ints(theMessage + sizeof(KernelMessageHeader), theClient.payloadLength);
 						free(theClient.messageHeader);
 						theClient.messageHeader=NULL;
 						theClient.messageToSend=0;
-						printf("sent result\n");
+						printf("sent result of size %d\n", send_count);
 				}
 			}
 		}

@@ -1,13 +1,10 @@
 all: core
 
-core: graph.o server.c jsonProcessing.o objectSlab.o
-	gcc -DSERVER --std=gnu99 -g -o core server.c graph.o jsonProcessing.o objectSlab.o ../graphShared/graphUtility.o ../coreShared/coreUtility.o -lyajl -lrt -lBitsDBCoreCollections
+core: graph.o server.c objectSlab.o
+	gcc -DSERVER --std=gnu99 -g -o core server.c graph.o objectSlab.o ../graphShared/graphUtility.o ../coreShared/message.o ../coreShared/coreUtility.o ../coreShared/shmUtility.o -lyajl -lrt -lBitsDBCoreCollections
 
 graph.o: graph.c
 	gcc -DSERVER --std=gnu99 -g -c graph.c -o graph.o
-
-jsonProcessing.o: jsonProcessing.c jsonProcessing.h
-	gcc -DSERVER --std=gnu99 -g -c jsonProcessing.c -o jsonProcessing.o
 
 objectSlab.o: objectSlab.c
 	gcc -DSERVER --std=gnu99 -g -c objectSlab.c -o objectSlab.o

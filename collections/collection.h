@@ -10,6 +10,9 @@ struct CollectionVTable{
 	void (*closeCollection)(struct Collection * collection);
 };
 
+/*DESCRIPTION: An enum for tracking what type of collections are available.*/
+typedef enum{coll_array, coll_lists}CollectionType;
+
 /*DESCRIPTION: The structure representing the base class of collections. Every child class
 that will have all of these fields in addition to their own*/
 typedef struct{
@@ -58,5 +61,7 @@ void collection_deleteSegment(char * segmentName);
 int isValid(Collection * collection, CollectionObject * object);
 
 void * collection_findFree(Collection * collection);
+
+int collection_getSizeInBytes(Collection * collection);
 
 #endif

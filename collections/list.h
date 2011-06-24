@@ -23,13 +23,11 @@ typedef struct{
 
 typedef ListObject List;
 
-typedef struct{
-	CollectionHdr base;
-}ListsHdr;
-
 Lists * lists_init(char * segmentName, void * initAddress, int sizeOfType, int slabIncrementSize, int callingProcess);
 
 List * lists_addList(Lists * lists);
+
+List * lists_getListByIndex(Lists * lists, int index);
 
 void * lists_addObjectToList(Lists * lists, List * list, void * object);
 
@@ -40,6 +38,8 @@ void lists_delete(Lists * lists);
 void lists_deleteSegment(char * segmentName);
 
 void * lists_getFirst(Lists * lists, List * list);
+
+int lists_getIndex(Lists * lists, void * object);
 
 int lists_removeList(Lists * lists, List * list);
 

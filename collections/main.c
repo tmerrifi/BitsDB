@@ -4,7 +4,7 @@
 #include "collection.h"
 #include "array.h"
 #include "list.h"
-#include "graphKernel/coreUtility.h"
+#include "graphKernel/shmUtility.h"
 
 int test_addNewObjectsSimple();
 
@@ -192,7 +192,7 @@ int test_addNewObjectsResize(){
 	array_addObject(theArray, rex);
 	array_addObject(theArray, hitch);
 	
-	hitch = array_getById(theArray, 3);
+	hitch = array_getById(theArray, 4);
 	
 	return (hitch->ssn == 666) ? 1 : 0;
 }
@@ -213,8 +213,8 @@ int test_addNewObjectsSimple(){
 	array_addObject(theArray, amber);
 	array_addObject(theArray, tim);
 	
-	amber = array_getById(theArray, 0);
-	tim = array_getById(theArray, 1);
+	amber = array_getById(theArray, 1);
+	tim = array_getById(theArray, 2);
 	
 	return (amber->ssn == 33333 && tim->ssn == 444444) ? 1 : 0;
 }

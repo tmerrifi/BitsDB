@@ -1,7 +1,7 @@
 all: test
 
 test: list.o array.o collection.o
-	gcc --std=gnu99 -g -o test main.c collection.o array.o ../coreShared/coreUtility.o ../graphShared/graphUtility.o list.o -lrt;
+	gcc --std=gnu99 -g -o test main.c collection.o array.o ../coreShared/shmUtility.o ../graphShared/graphUtility.o list.o -lrt;
 	./test
 
 libCore: list.o array.o collection.o

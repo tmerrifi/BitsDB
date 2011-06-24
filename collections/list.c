@@ -17,6 +17,16 @@ List * lists_addList(Lists * lists){
 	return (List *)array_addObject((Array *)lists,list);
 }
 
+List * lists_getListByIndex(Lists * lists, int index){
+	
+	List * list = array_getObjectFromIndex((Array *)lists, index);
+	if (!isValid(lists, list)){
+		list = NULL;	
+	}
+	
+	return list;
+}
+
 void * lists_addObjectToList(Lists * lists, List * list, void * object){
 	void * newObject = array_addObject((Array *)lists,object);
 	if (newObject){
@@ -52,6 +62,10 @@ void * lists_getFirst(Lists * lists, List * list){
 	if (list->meta_un.listHeader.head && isValid((Collection *)lists, list)){
 		return (void *)(lists->base.mem + list->meta_un.listHeader.head);
 	}
+}
+
+int lists_getIndex(Lists * lists, void * object){
+	return array_getIndex( (Array *)lists, object);	
 }
 
 int lists_removeList(Lists * lists, List * list){

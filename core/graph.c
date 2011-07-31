@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <semaphore.h>
 
 #include "graphKernel/graph.h"
 #include "jsonProcessing.h"
@@ -24,27 +25,30 @@ int addObjectToArray(void * collection, void * object);		//add an object to the 
 /*********PUBLIC FUNCTIONS***************************************/
 
 int addVerticesFromCount(Graph * graph, u_int32_t count, int ** indices){
+	graph=mainGraph;
+	sem_wait(graph->lock);
 	int counter=0;
 	int * _indices = malloc(sizeof(int) * count);	//we need to return the indices to the calling client
 	for (int i = 0; i < count; ++i){
 		Vertex * newVertex = malloc(sizeof(Vertex));
 		newVertex->neighborsPtr = 0;
-		void * newArrayObject = array_addObject(mainGraph->vertices, newVertex);	//returns 0 on fail, 1 on success so we can add it up
+		void * newArrayObject = array_addObject(graph->vertices, newVertex);	//returns 0 on fail, 1 on success so we can add it up
 		if (newArrayObject){
-			int index = array_getIndex(mainGraph->vertices, newArrayObject);
+			int index = array_getIndex(graph->vertices, newArrayObject);
 			printf("index is %d\n", index);
 			_indices[i]=index;													//add our index to the array
 			++counter;
 		}
 	}
 	*indices = _indices;	//so we can return our array
+	sem_post(graph->lock);
 	return counter;
 }
 
 //DESCRIPTION: This function initializes a brand new graph. If the graph (identified by the identifier graphName)
 //already exists then an error is thrown.
 //Args: graphName - an unique string identifier for this graph
-Graph * initGraph(char * graphName){
+Graph * graph_init(char * graphName){
 	
 	char * verticesSharedMemoryId=graphUtil_getVertexName(graphName);
 	char * edgeSharedMemoryId=graphUtil_getEdgesName(graphName);
@@ -53,17 +57,28 @@ Graph * initGraph(char * graphName){
 	lists_deleteSegment(edgeSharedMemoryId);
 	
 	mainGraph = malloc(sizeof(Graph));	//TODO: just one graph for now, maybe support several eventually
-		
+	mainGraph->graphName = malloc(strlen(graphName));
+	strncpy(mainGraph->graphName, graphName, strlen(graphName)); 
 	mainGraph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CORE);
 	mainGraph->neighbors = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Neighbor), 5, SHM_CORE);
+	mainGraph->lock = sem_open( graph_getSemName(mainGraph->graphName),
+										O_CREAT, 0777, 1 );
+	//get the value of the semaphore to make sure it's not zero
+	int sem_value = 0;
+	sem_getvalue(mainGraph->lock, &sem_value);
+	if (sem_value == 0){
+		sem_post(mainGraph->lock); //we can't use this semaphore if it's zero, so increment it	
+	}
 	
 	return mainGraph;
 }
 
 int addNeighbor(Graph * graph, int v1, int v2){
 	graph=mainGraph;
+	sem_wait(graph->lock);
 	List * list;
 	Vertex * tmpV1 = array_getById(graph->vertices, v1);
+	int result = 0;
 	if (tmpV1->neighborsPtr){
 		list = lists_getListByIndex(graph->neighbors, index);
 	}
@@ -75,11 +90,11 @@ int addNeighbor(Graph * graph, int v1, int v2){
 	if (list && neighbor){
 		neighbor->destVertex = v2;
 		lists_addObjectToList(graph->neighbors, list, neighbor);
-		return 1;
+		result = 1;
 	}
-	else{
-		return 0;	
-	}
+	
+	sem_post(graph->lock);
+	return result;
 }
 
 /*******PRIVATE FUNCTIONS**************/

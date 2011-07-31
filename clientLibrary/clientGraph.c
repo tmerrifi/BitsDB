@@ -31,7 +31,7 @@ int findAttributeByName(void * collectionPtr, void * targetName);
 
 /********* PUBLIC FUNCTIONS ***************************/
 
-Graph * initGraph(char * graphName){
+Graph * graph_init(char * graphName){
 	char * verticesSharedMemoryId=graphUtil_getVertexName(graphName);
 	char * edgeSharedMemoryId=graphUtil_getEdgesName(graphName);
 	
@@ -41,11 +41,12 @@ Graph * initGraph(char * graphName){
 			mainGraph=malloc(sizeof(Graph));
 			mainGraph->graphName = malloc(strlen(graphName));
 			strncpy(mainGraph->graphName, graphName, strlen(graphName));
-			mainGraph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CLIENT);
-			mainGraph->neighbors = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Neighbor), 5, SHM_CLIENT);
+			//mainGraph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CLIENT);
+			//mainGraph->neighbors = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Neighbor), 5, SHM_CLIENT);
 			mainGraph->attributes = linkedList_init();		//attributes is a generic linked list
 			mainGraph->lock = sem_open( graph_getSemName(mainGraph->graphName),
 										O_CREAT, 0777, 1 );
+			graph_getSnapShot(mainGraph);
 		}
 	}
 	return mainGraph;
@@ -106,18 +107,38 @@ int findAttributeByName(void * collectionPtr, void * targetName){
 void graph_getSnapShot(Graph * graph){
 		
 	sem_wait(graph->lock);
-	mainGraph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CLIENT);
-	mainGraph->neighbors = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Neighbor), 5, SHM_CLIENT);
-	int vertexBytes = collection_getSizeInBytes((Collection *)mainGraph->vertices);
+	char * verticesSharedMemoryId=graphUtil_getVertexName(graph->graphName);
+	char * edgeSharedMemoryId=graphUtil_getEdgesName(graph->graphName);
+	graph->vertices = array_init(verticesSharedMemoryId, (void *)0xF0000000, sizeof(Vertex), 5, SHM_CLIENT);
+	graph->neighbors = lists_init(edgeSharedMemoryId, (void *)0xD0000000, sizeof(Neighbor), 5, SHM_CLIENT);
+	
+	//array_getNextValidObjectFromIndex(Array * array, int * index, int keepGoingFlag);
+	
+	Array * newVertices = array_copy(graph->vertices);
+	Lists * newNeighbors = lists_copy(graph->neighbors);
+	
+	array_close(mainGraph->vertices);	//closing these guys unmaps the memory
+	array_close((Array *)mainGraph->neighbors);
+	
+	graph->vertices = newVertices;
+	graph->neighbors = newNeighbors;
+	
+	/*int vertexBytes = collection_getSizeInBytes((Collection *)mainGraph->vertices);
 	int neighborsBytes = collection_getSizeInBytes((Collection *)mainGraph->neighbors);
 	//perform copy
-	void * newVertices = malloc(vertexBytes);
-	void * newNeighbors = malloc(neighborsBytes);
-	memcpy(newVertices, mainGraph->vertices, vertexBytes);
-	memcpy(newNeighbors, mainGraph->neighbors, neighborsBytes);
+	void * vertices_mem = malloc(vertexBytes);
+	void * neighbors_mem = malloc(neighborsBytes);
+	
+	memcpy(vertices_mem, mainGraph->vertices->base.mem, vertexBytes);
+	memcpy(neighbors_mem, ((Array *)mainGraph->neighbors)->base.mem, neighborsBytes);
+	
+	Array * vertices = malloc(sizeof(Array));
+	List * neighbors = malloc(sizeof(List));
+	
+	memcpy(vertices, */
 	//now we need to unmap our regions
-	array_close(mainGraph->vertices);
-	lists_close(mainGraph->neighbors);
+	//mainGraph->vertices->base.mem = newVertices;	//ok, set these back
+	//((Array *)mainGraph->neighbors)->base.mem = newNeighbors;
 	sem_post(graph->lock);
 }
 

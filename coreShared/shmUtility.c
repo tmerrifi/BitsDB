@@ -50,7 +50,7 @@ void * coreUtil_openSharedMemory(char * segmentName, void * address, int default
 			sizeInBytes=defaultSize;
 		}
 		if (sizeInBytes > 0){
-			mem = mmap(address,sizeInBytes,mmap_prots,MAP_SHARED,*fd,0);
+			mem = mmap(address,sizeInBytes,mmap_prots,MAP_PRIVATE,*fd,0);
 		}	
 	}
 	return mem;
@@ -72,7 +72,7 @@ void * coreUtil_resizeSharedMemory(void * addr, int currentMappingSize, int newM
 		perror("error resizing the file (ftruncate)");
 	}
 	else {
-		mem = mmap(addr, newMappingSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);	//now map it into memory
+		mem = mmap(addr, newMappingSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);	//now map it into memory
 		if ((int)mem == -1){
 			perror("An error occured when mapping a shared memory segment in resize for object slab.");
 		}

@@ -1,7 +1,7 @@
 all: core
 
 core: graph.o server.c objectSlab.o
-	gcc -DSERVER --std=gnu99 -g -o core server.c graph.o objectSlab.o ../graphShared/graphUtility.o ../coreShared/message.o ../coreShared/coreUtility.o ../coreShared/shmUtility.o -lyajl -lrt -lBitsDBCoreCollections
+	gcc -DSERVER --std=gnu99 -g -o core server.c graph.o objectSlab.o ../graphShared/graphUtility.o ../coreShared/message.o ../coreShared/coreUtility.o ../coreShared/shmUtility.o ../coreShared/linkedList.o -lyajl -lrt -lBitsDBCoreCollections
 
 graph.o: graph.c
 	gcc -DSERVER --std=gnu99 -g -c graph.c -o graph.o

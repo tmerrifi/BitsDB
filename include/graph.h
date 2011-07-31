@@ -3,29 +3,34 @@
 #define GRAPH_H
 
 #include <stdlib.h>
+#include <semaphore.h>
+
 #include "graphKernel/array.h"
 #include "graphKernel/list.h"
+#include "graphKernel/linkedList.h"
 
 typedef struct{
-	double lat;
-	double lon;
+	CollectionObject base;	//so we can place it in our collections classes
+	int neighborsPtr;
 }Vertex;
 
 typedef struct{
-	Vertex * v1;
-	Vertex * v2;
-}Edge;
+	ListObject base;	//because the neighbors is a list
+	int destVertex;
+}Neighbor;
 
 /*The central data structure representing a graph*/
 typedef struct{
 	Array * vertices;
-	Lists * edges;
+	Lists * neighbors;
 	char * graphName;
 	int graphId;
+	LinkedList * attributes;
+	sem_t * lock;
 }Graph;
 
 /*Main function for creating a new graph*/
-Graph * initGraph(char * graphName);
+Graph * graph_init(char * graphName);
 
 /*Get an update of this graph*/
 Graph * updateGraph(char * graphName);
@@ -33,8 +38,12 @@ Graph * updateGraph(char * graphName);
 /*Add the vertices to the graph from JSON*/
 int addVertices(Graph * graph, char * json);
 
+int addNeighbor(Graph * graph, int v1, int v2);
 
-/*Add the edges to the graph from JSON*/
-int addEdges(Graph * graph, char * json);
+int addVerticesFromCount(Graph * graph, u_int32_t count, int ** indices);
+
+void graph_getSnapShot(Graph * graph);
+
+#define graph_getSemName(gname) coreUtil_concat("sem_", gname)
 
 #endif

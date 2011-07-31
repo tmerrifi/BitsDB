@@ -19,7 +19,6 @@ void collection_init(Collection * collection, char * segmentName, void * initAdd
 
 void collection_close(Collection * collection){
 	coreUtil_closeSharedMemory(collection->mem, collection->sizeOfMapping, collection->fd);	
-	free(collection);
 }
 
 void * collection_resize(Collection * collection, int newSize){
@@ -66,7 +65,6 @@ void * collection_findFree(Collection * collection ){
 void collection_delete(Collection * collection){
 	coreUtil_closeSharedMemory(collection->mem, collection->sizeOfMapping, collection->fd);		//make sure to unmap and close the file first
 	coreUtil_removeSharedMemory(collection->segmentName);
-	free(collection);
 }
 
 void collection_deleteSegment(char * segmentName){

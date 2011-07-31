@@ -45,6 +45,8 @@ int lists_removeList(Lists * lists, List * list);
 
 int lists_removeObjectFromList(Lists * lists, List * list, void * object);
 
+Lists * lists_copy(Lists * lists);
+
 #define LISTS_FOR_EACH(lists,ourList,i)\
 		for (i=lists_getFirst(lists,ourList); i!=NULL; i=lists_getNextObject(lists,i))
 

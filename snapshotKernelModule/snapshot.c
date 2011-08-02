@@ -21,17 +21,6 @@ int debugging_each_pte_entry (pte_t * pte, unsigned long addr, unsigned long nex
 	
 	unsigned long pfn = pte_pfn(*pte);
 	struct page * page = pte_page(*pte);
-	
-	trace_printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, file: %d, %p, pfn: %lu, pfn_page: %p, %d, %p \n", 
-					pte_val(*pte),
-					pte_dirty(*pte),
-					pte_write(*pte),
-					pte_file(*pte),
-					pte,
-					pfn,
-					pfn_to_page(pfn),
-					PageAnon(page),
-					page->mapping );
 					
 	return 0;
 }
@@ -44,7 +33,6 @@ void debugging_pte ( struct vm_area_struct * vma ){
 	pt_walker.mm = vma->vm_mm;
 	
 	walk_page_range(vma->vm_start, vma->vm_end, &pt_walker);	//calls a function outside this module that handles this
-	trace_printk("vm flags, HUH??????? %d\n", ( (vma->vm_flags & (VM_WRITE|VM_SHARED)) == (VM_WRITE|VM_SHARED) ) );
 }
 
 int is_snapshot (struct vm_area_struct * vma, struct mm_struct * mm, struct file * f){
@@ -111,12 +99,10 @@ struct vm_area_struct * get_master_vma (struct file * vm_file, struct vm_area_st
 				}
   	      	}
 		}
-		
 		return NULL;
 }
 
 pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
-
 	pgd_t * pgd;
 	pud_t *pud;
 	pte_t * pte;
@@ -135,7 +121,6 @@ pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
 			}
 		}
 	}
-	
 	return NULL;
 }
 
@@ -145,96 +130,28 @@ int each_pte_entry (pte_t * pte, unsigned long addr, unsigned long next, struct 
 	//trace_printk("SNAP: in each_pte_entry\n");
 	int page_mapped_result = 0;
 	pte_t * dest_pte, tmp_ro_pte, tmp_master_pte;
-	
 	page = pte_page(*pte);
-	trace_printk(	"SNAP: each_pte_entry, %lu, anonymous: %lu, ksm: %lu\n", 
-					pte_val(*pte), 
-					((unsigned long)page->mapping & PAGE_MAPPING_ANON),
-					((unsigned long)page->mapping & PAGE_MAPPING_KSM));
-	
 	if (page){
 		//is this page mapped into our address space?
 		struct vm_area_struct * vma_read_only = (struct vm_area_struct *)walker->private;
-		trace_printk("SNAP: the original vma: %p, the new thing: %p \n", vma_read_only, page->mapping);
 		page_mapped_result = page_mapped_in_vma(page, vma_read_only);
 		if (!page_mapped_result){
 			readonly_addr = (page->index << PAGE_SHIFT) + vma_read_only->vm_start;	//get the new address
-			trace_printk("SNAP: no, it's not mapped, index %lu, addr1: %lu addr2: %lu, %lu, %d\n", 
-						page->index, 
-						readonly_addr, 
-						addr,
-						(page->index << PAGE_SHIFT),
-						PAGE_SHIFT);
 			dest_pte = get_pte_entry_from_address( vma_read_only->vm_mm, readonly_addr);	
 			current_page = pte_page(*dest_pte);	//getting the page struct for the pte we just grabbed
 			if (dest_pte){
-				trace_printk( "SNAP: the page is.... %p ... %d \n", page, page->_count.counter );
 				get_page(page);												//increment the ref count for this page
-				trace_printk( "SNAP: the page is.... %p ... %d \n", page, page->_count.counter );
 				tmp_ro_pte = mk_pte(page, vma_read_only->vm_page_prot);		//create the new pte given a physical page (frame)
 				pte_mkold(tmp_ro_pte);											//clear the accessed bit
 				set_pte(dest_pte, tmp_ro_pte);									//now set the new pte
 				tmp_master_pte = ptep_get_and_clear(walker->mm, addr, pte);
-				
-				trace_printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, present: %d, anonymous? : %d, anon: %d, %p, %p \n", 
-					pte_val(tmp_master_pte),
-					pte_dirty(tmp_master_pte),
-					pte_write(tmp_master_pte),
-					pte_present(tmp_master_pte),
-					PageAnon(page),
-					PageAnon(current_page),
-					page,
-					current_page );
-				
-				
 				tmp_master_pte = pte_wrprotect(tmp_master_pte);				//we need to write protect the owner's pte again
-				
 				page->mapping = current_page->mapping; 						//need to set the mapping back so it's no longer anonymous
-				
-				trace_printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, present: %d, anonymous? : %d, anon: %d, %p, %p \n", 
-					pte_val(tmp_master_pte),
-					pte_dirty(tmp_master_pte),
-					pte_write(tmp_master_pte),
-					pte_present(tmp_master_pte),
-					PageAnon(page),
-					PageAnon(current_page),
-					page,
-					current_page);
-				
 				set_pte(pte, tmp_master_pte);
-				
-				trace_printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, present: %d, ptr %p, anonymous? : %d, anon: %d, %p, %p \n", 
-					pte_val(*pte),
-					pte_dirty(*pte),
-					pte_write(*pte),
-					pte_present(*pte),
-					pte,
-					PageAnon(page),
-					PageAnon(current_page),
-					page,
-					current_page);
-				
 				pte_unmap(dest_pte);	
 			}									
 		}
-		
 	}
-		//no?
-			//is the pte not empty?
-				//yes
-					//switch the current pte to be read-only.
-					//flush the TLB so parent process can no longer write to this page.
-					//we need to copy the pte.
-					//put the new pte into our page table.
-					//increment the page ref count
-	
-	
-	/*if (page && ((unsigned long)page->mapping & PAGE_MAPPING_ANON){
-		
-	}
-	if (page){
-		page_mapped_result = page_mapped_in_vma(page, 	
-	}*/
 	return 0;
 }
 
@@ -249,23 +166,17 @@ void walk_master_vma_page_table(struct vm_area_struct * vma, struct vm_area_stru
 }
 
 int get_snapshot (struct vm_area_struct * vma){
-	
 	struct vm_area_struct * master_vma;
-	
 	trace_printk("SNAP: get_snapshot \n");
-	
 	if (vma && vma->vm_mm && vma->vm_file){
 		master_vma = get_master_vma(vma->vm_file, vma);
 		trace_printk("SNAP: walking the page table for MASTER : %p\n", master_vma);
 		if (master_vma){
 			walk_master_vma_page_table(master_vma, vma);
-			//flush_tlb_mm(vma->vm_mm);		//flush the TLB here!!!
 			trace_printk("is master shared??? : %lu current??? %lu \n", 
 			(master_vma->vm_flags & VM_SHARED),
 			(vma->vm_flags & VM_SHARED));
 		}
-		//trace_printk("SNAP: walking the page table for READ-ONLY! : %p\n", vma);
-		//walk_vma_page_table(vma);
 	}
 	
 	return 0;

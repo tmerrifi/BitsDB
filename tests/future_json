@@ -1,0 +1,12 @@
+[ 	
+	{ 
+		vertex:
+			{"label":"hi"}, 
+		neighbors:	
+			{ 
+				{ "vertex_id":2, "edge_type":"walking", "direction":"out"} 
+				{ "vertex_id":5, "edge_type":"walking", "direction":"out"} 
+				...	
+			}
+	}
+]

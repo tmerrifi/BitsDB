@@ -41,6 +41,8 @@ void array_deleteSegment(char * segmentName);
 
 void * array_getNextValidObjectFromIndex(Array * array, int * index, int keepGoingFlag);
 
+Array * array_copy(Array * array);
+
 #define ARRAY_FOR_EACH(arr,arr_obj)\
 		int i = 1;\
   		arr_obj=array_getNextValidObjectFromIndex(arr,&i, 1);\

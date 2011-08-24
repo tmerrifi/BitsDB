@@ -4,6 +4,7 @@
 
 #include "collection.h"
 #include "array.h"
+#include "graphKernel/shmUtility.h"
 
 /******PUBLIC FUNCTIONS*******************/
 
@@ -13,7 +14,7 @@ Array * array_init(char * segmentName, void * initAddress, int sizeOfType, int s
 	array->sizeOfType=sizeOfType;
 	array->slabIncrementSize=slabIncrementSize;
 	
-	if (((ArrayHdr *)array->base.mem)->currentObjectsAllocated == 0){	//lets start it off at 1 so a pointer of 0 will indicate NULL
+	if (((ArrayHdr *)array->base.mem)->currentObjectsAllocated == 0 && callingProcess == SHM_CORE){	//lets start it off at 1 so a pointer of 0 will indicate NULL
 		((ArrayHdr *)array->base.mem)->currentObjectsAllocated = 1;	
 	}
 	
@@ -89,6 +90,15 @@ void * array_getNextValidObjectFromIndex(Array * array, int * index, int keepGoi
 	}
 }
 
+Array * array_copy(Array * array){
+	Array * target = malloc(sizeof(Array));
+	memcpy(target, array, sizeof(Array));
+	int size = collection_getSizeInBytes((Collection *)array);
+	target->base.mem = malloc(size);
+	memcpy(target->base.mem, array->base.mem, size);
+	target->nextFreeSlot = (array->nextFreeSlot) ? target->base.mem + (array->nextFreeSlot - array->base.mem) : NULL;
+	return target;
+}
 
 /*DESCRIPTION: calculate the index into the array of this vertex*/
 int array_getIndex(Array * array, void * object){
@@ -101,6 +111,7 @@ int array_removeObject(Array * array, void * object){
 
 void array_close(Array * array){
 	collection_close((Collection *)array);	
+	free(array);
 }
 
 void * array_getById(Array * array, int id){

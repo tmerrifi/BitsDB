@@ -26,6 +26,7 @@ LinkedListNode * linkedList_addNode(LinkedList * list, void * payload){
 			newNode->prev = list->tail;
 			list->tail = newNode;
 		}
+		list->length+=1;
 	}
 	return newNode;
 }
@@ -47,6 +48,7 @@ LinkedListNode * linkedList_removeNode(LinkedList * list, LinkedListNode * targe
 			list->head=NULL;
 			list->tail=NULL;	
 		}
+		list->length-=1;
 		free(targetNode);
 	}
 }	
@@ -92,6 +94,15 @@ int linkedList_compare_string(void * str, void * targetStr){
 	if (strcmp((char *)str, (char *)targetStr)==0){
 		return 1;	
 	}
+	else{
+		return 0;	
+	}
+}
+
+int linkedList_compare_ptr(void * ptr, void * targetPtr){
+	if (ptr==targetPtr){
+		return 1;	
+	}	
 	else{
 		return 0;	
 	}

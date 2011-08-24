@@ -7,3 +7,5 @@ Figure out how to map the graph into memory. Try and make it architecture indepe
 How does an application know what attributes they previously created? How do we handle it if two applications create the same attribute (the same name)?
 
 So perhaps an application specifies the attributes they are interested in when they fire up the graph. If another application tries to create an attribute of the same name that request is denied. ?
+
+There needs to be a single directory somewhere that houses all the files for THAT DB

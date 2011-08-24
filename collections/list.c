@@ -100,4 +100,8 @@ void lists_deleteSegment(char * segmentName){
 	collection_deleteSegment(segmentName);
 }
 
+Lists * lists_copy(Lists * lists){
+	return (Lists *)array_copy((Array *)lists);	
+}
+
 

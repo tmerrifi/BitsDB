@@ -16,6 +16,7 @@
 #include "graphKernel/message.h"
 #include "../include/global.h"
 #include "jsonProcessing.h"
+#include "graphKernel/linkedList.h"
 
 #ifndef FD_COPY
 #define FD_COPY(f, t)   (void)(*(t) = *(f))
@@ -29,7 +30,7 @@ typedef struct{
 	int messageToSend;
 }ClientMessage;
 
-ClientMessage theClient;
+LinkedList * clientList; //our list of clients
 
 //a generic funtion to check if an error has occured, print it out, and exit.
 static void checkAndExit(int fd, char * errorMsg){
@@ -66,7 +67,7 @@ void demultiplexOperation(ClientMessage * clientMessage){
 	
 	switch(operationType){
 		case MESSAGE_INIT_GRAPH:
-			if (initGraph((char *)(clientMessage->messagePayload))){	//now initialize the graph...for create, the payload is just the name
+			if (graph_init((char *)(clientMessage->messagePayload))){	//now initialize the graph...for create, the payload is just the name
 				printf("Successfully created graph!\n");
 				clientMessage->messageHeader->operationType=OP_SUCCEESS;
 				clientMessage->messagePayload = NULL;
@@ -100,11 +101,13 @@ void demultiplexOperation(ClientMessage * clientMessage){
 				clientMessage->messageHeader->operationType=OP_SUCCEESS;
 				clientMessage->messagePayload = NULL;
 				clientMessage->payloadLength = 0;
+				printf("added neighbor\n");
 			}
 			else{
 				printf("Insert Neighbor Failed\n");
 				clientMessage->messageHeader->operationType=OP_FAILED;
 			}
+			break;
 		default:
 			printf("Nutin\n");	
 	}
@@ -120,6 +123,10 @@ void printOutBytes(unsigned char * b, int length){
 //DESCRIPTION: The main server function that listens for requests over a raw IP socket.
 //Args:None
 void server(){
+	
+	/*set up list of clients */
+	clientList = linkedList_init();
+	
 	int server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);	
 	checkAndExit(server_sock,"SERVER: Error creating socket");
 	
@@ -149,51 +156,61 @@ void server(){
 		if(FD_ISSET(server_sock,&rdyset)) {	//we have a new message
 			printf("got a connection\n");
 			int sock;
+			ClientMessage * newClient = calloc(1, sizeof(ClientMessage));
 			struct sockaddr_in remote_addr;
 			unsigned int socklen = sizeof(remote_addr); 
 			sock = accept(server_sock, (struct sockaddr*)&remote_addr, &socklen);
 			checkAndExit(sock,"SERVER: Error getting socket for the client.");
-			theClient.socket=sock;
+			newClient->socket=sock;
 			printf("newsocket is %d\n", sock);
 			FD_SET(sock,&readset);
 			FD_SET(sock,&writeset);
+			linkedList_addNode(clientList, newClient);
 		}
-		if(FD_ISSET(theClient.socket,&rdyset)) {
-			printf("socket is %d\n", theClient.socket);
-			int bufferSize = (theClient.messageHeader != NULL) ? theClient.messageHeader->length : sizeof(KernelMessageHeader);
-			unsigned char * buf=malloc(bufferSize);
-			memset(buf,0,bufferSize);
-			int rec_count = recv(theClient.socket,buf,bufferSize,0);
-			printf("rec_count %d, buffersize %d\n", rec_count, bufferSize);
-			if (rec_count > 0 && theClient.messageHeader == NULL){			//we got the header
-				theClient.messageHeader = (KernelMessageHeader *)buf;
-			}
-			else if (rec_count > 0){		
-				theClient.messagePayload=buf;									//we got the payload
-				demultiplexOperation(&theClient);
-				free(buf);
-				printf("done with read\n");
-			}
-			else{														//need to shut down the socket
-				theClient.messageHeader=NULL;
-				close(theClient.socket);
-				FD_CLR(theClient.socket,&readset);
-				FD_CLR(theClient.socket,&writeset);
-				printf("closed connection\n");
-			}
-		}
-		if (FD_ISSET(theClient.socket,&wset)){
-			if (theClient.messageToSend){
-				unsigned char * theMessage = 
-					buildMessage(theClient.messageHeader->operationType, (char *)theClient.messagePayload, theClient.payloadLength);
+		ClientMessage * client = NULL;
+		LinkedListNode * tmpNode = clientList->head;
+		for(client = (clientList->head) ? clientList->head->payload : NULL;
+		tmpNode != NULL;
+		tmpNode = tmpNode->next, client = (tmpNode) ? tmpNode->payload : NULL) {
+			if(FD_ISSET(client->socket,&rdyset)) {
+				printf("socket is %d\n", client->socket);
 				
-				int send_count = send(theClient.socket,theMessage,theClient.payloadLength  + sizeof(KernelMessageHeader),0);
-				if (send_count >= 0){
-						print_debug_ints(theMessage + sizeof(KernelMessageHeader), theClient.payloadLength);
-						free(theClient.messageHeader);
-						theClient.messageHeader=NULL;
-						theClient.messageToSend=0;
-						printf("sent result of size %d\n", send_count);
+				int bufferSize = (client->messageHeader != NULL) ? client->messageHeader->length : sizeof(KernelMessageHeader);
+				unsigned char * buf=malloc(bufferSize);
+				memset(buf,0,bufferSize);
+				int rec_count = recv(client->socket,buf,bufferSize,0);
+				printf("rec_count %d, buffersize %d\n", rec_count, bufferSize);
+				if (rec_count > 0 && client->messageHeader == NULL){			//we got the header
+					client->messageHeader = (KernelMessageHeader *)buf;
+				}
+				else if (rec_count > 0){		
+					client->messagePayload=buf;									//we got the payload
+					demultiplexOperation(client);
+					free(buf);
+					printf("done with read\n");
+				}
+				else{														//need to shut down the socket
+					client->messageHeader=NULL;
+					close(client->socket);
+					FD_CLR(client->socket,&readset);
+					FD_CLR(client->socket,&writeset);
+					linkedList_removeNode(clientList, linkedList_find(clientList, client, linkedList_compare_ptr));	//remove our client from the list
+					printf("closed connection\n");
+				}
+			}
+			if (FD_ISSET(client->socket,&wset)){
+				if (client->messageToSend){
+					unsigned char * theMessage = 
+						buildMessage(client->messageHeader->operationType, (char *)client->messagePayload, client->payloadLength);
+					
+					int send_count = send(client->socket,theMessage,client->payloadLength  + sizeof(KernelMessageHeader),0);
+					if (send_count >= 0){
+							print_debug_ints(theMessage + sizeof(KernelMessageHeader), client->payloadLength);
+							free(client->messageHeader);
+							client->messageHeader=NULL;
+							client->messageToSend=0;
+							printf("sent result of size %d\n", send_count);
+					}
 				}
 			}
 		}
@@ -202,6 +219,5 @@ void server(){
 
 int main(){
 	printf("started server\n");
-	memset(&theClient,0,sizeof(ClientMessage));
 	server();
 }

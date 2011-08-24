@@ -1,0 +1,1000 @@
+ 1)               |    do_mmap_pgoff() {
+ 1)               |      /* TIM: in do_mmap_pgoff  */
+ 1)               |      get_unmapped_area() {
+ 1)               |        arch_get_unmapped_area_topdown() {
+ 1)   0.793 us    |          find_vma();
+ 1)               |          /* got the unmapped area */
+ 1)               |          /* tim_get_unmapped_area_debug is e08c80f0 */
+ 1)               |          myDebugFunction() {
+ 1)               |            /* my debug function got hit!!!! */
+ 1)               |            /* the start is : 3077578752 */
+ 1)               |            /* the end is : 3077582848, diff is 4096 */
+ 1)               |            /* the name of the file is snapshot_test */
+ 1)   2.336 us    |          }
+ 1)   5.131 us    |        }
+ 1)   5.654 us    |      }
+ 1)               |      security_file_mmap() {
+ 1)               |        apparmor_file_mmap() {
+ 1)   0.245 us    |          cap_file_mmap();
+ 1)               |          common_mmap() {
+ 1)   0.298 us    |            common_file_perm();
+ 1)   0.771 us    |          }
+ 1)   1.757 us    |        }
+ 1)   2.299 us    |      }
+ 1)               |      mmap_region() {
+ 1)   0.229 us    |        is_file_shm_hugepages();
+ 1)               |        security_vm_enough_memory() {
+ 1)               |          cap_vm_enough_memory() {
+ 1)   0.271 us    |            __vm_enough_memory();
+ 1)   0.745 us    |          }
+ 1)   1.237 us    |        }
+ 1)   0.245 us    |        vma_merge();
+ 1)               |        kmem_cache_alloc() {
+ 1)   0.234 us    |          _cond_resched();
+ 1)   0.263 us    |          memset();
+ 1)   1.253 us    |        }
+ 1)               |        shmem_mmap() {
+ 1)               |          touch_atime() {
+ 1)               |            current_fs_time() {
+ 1)   0.248 us    |              current_kernel_time();
+ 1)   0.236 us    |              timespec_trunc();
+ 1)   1.316 us    |            }
+ 1)   1.828 us    |          }
+ 1)   2.321 us    |        }
+ 1)   0.229 us    |        vma_wants_writenotify();
+ 1)               |        vma_link() {
+ 1)   0.248 us    |          _raw_spin_lock();
+ 1)   0.395 us    |          __vma_link_rb();
+ 1)               |          __vma_link_file() {
+ 1)   0.331 us    |            vma_prio_tree_insert();
+ 1)   0.918 us    |          }
+ 1)   2.532 us    |        }
+ 1)   0.245 us    |        vm_stat_account();
+ 1) + 11.029 us   |      }
+ 1) + 20.773 us   |    }
+ 1)   0.248 us    |    up_write();
+ 1)   0.248 us    |    fput();
+ 1) + 23.804 us   |  }
+ 1)   0.403 us    |  down_read_trylock();
+ 1)   0.241 us    |  _cond_resched();
+ 1)   0.305 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __pte_alloc() {
+ 1)               |      pte_alloc_one() {
+ 1)               |        __alloc_pages_nodemask() {
+ 1)   0.230 us    |          _cond_resched();
+ 1)   0.233 us    |          next_zones_zonelist();
+ 1)               |          get_page_from_freelist() {
+ 1)   0.233 us    |            next_zones_zonelist();
+ 1)               |            zone_watermark_ok() {
+ 1)   0.237 us    |              __zone_watermark_ok();
+ 1)   0.689 us    |            }
+ 1)               |            __kmap_atomic() {
+ 1)               |              kmap_atomic_prot() {
+ 1)   0.237 us    |                page_address();
+ 1)   0.730 us    |              }
+ 1)   1.283 us    |            }
+ 1)   0.270 us    |            __kunmap_atomic();
+ 1)   4.375 us    |          }
+ 1)   5.933 us    |        }
+ 1)               |        inc_zone_page_state() {
+ 1)   0.241 us    |          __inc_zone_state();
+ 1)   0.730 us    |        }
+ 1)   7.418 us    |      }
+ 1)   0.263 us    |      _raw_spin_lock();
+ 1)   2.441 us    |      native_set_pmd();
+ 1) + 11.326 us   |    }
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.237 us    |        page_address();
+ 1)   0.727 us    |      }
+ 1)   1.196 us    |    }
+ 1)   0.226 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      shmem_fault() {
+ 1)               |        shmem_getpage() {
+ 1)               |          find_lock_page() {
+ 1)   0.425 us    |            find_get_page();
+ 1)   0.237 us    |            _cond_resched();
+ 1)   1.486 us    |          }
+ 1)   2.163 us    |        }
+ 1)   3.374 us    |      }
+ 1)               |      anon_vma_prepare() {
+ 1)   0.229 us    |        _cond_resched();
+ 1)               |        kmem_cache_alloc() {
+ 1)   0.214 us    |          _cond_resched();
+ 1)   0.711 us    |        }
+ 1)   0.293 us    |        find_mergeable_anon_vma();
+ 1)               |        kmem_cache_alloc() {
+ 1)   0.229 us    |          _cond_resched();
+ 1)   0.790 us    |        }
+ 1)   0.245 us    |        _raw_spin_lock();
+ 1)   0.248 us    |        _raw_spin_lock();
+ 1)   4.258 us    |      }
+ 1)               |      __alloc_pages_nodemask() {
+ 1)   0.214 us    |        _cond_resched();
+ 1)   0.233 us    |        next_zones_zonelist();
+ 1)               |        get_page_from_freelist() {
+ 1)   0.293 us    |          next_zones_zonelist();
+ 1)               |          zone_watermark_ok() {
+ 1)   0.237 us    |            __zone_watermark_ok();
+ 1)   0.692 us    |          }
+ 1)   1.794 us    |        }
+ 1)   3.232 us    |      }
+ 1)               |      mem_cgroup_newpage_charge() {
+ 1)               |        mem_cgroup_charge_common() {
+ 1)   0.214 us    |          lookup_page_cgroup();
+ 1)   0.264 us    |          __mem_cgroup_try_charge();
+ 1)               |          __mem_cgroup_commit_charge() {
+ 1)   0.237 us    |            mem_cgroup_charge_statistics();
+ 1)   0.233 us    |            memcg_check_events();
+ 1)   1.343 us    |          }
+ 1)   2.750 us    |        }
+ 1)   3.216 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.214 us    |          page_address();
+ 1)   0.655 us    |        }
+ 1)   1.155 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.215 us    |          page_address();
+ 1)   0.749 us    |        }
+ 1)   1.189 us    |      }
+ 1)   0.403 us    |      __kunmap_atomic();
+ 1)   0.233 us    |      __kunmap_atomic();
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.234 us    |          page_address();
+ 1)   0.737 us    |        }
+ 1)   1.207 us    |      }
+ 1)   0.249 us    |      _raw_spin_lock();
+ 1)               |      page_add_new_anon_rmap() {
+ 1)               |        __inc_zone_page_state() {
+ 1)   0.245 us    |          __inc_zone_state();
+ 1)   0.745 us    |        }
+ 1)   0.237 us    |        page_evictable();
+ 1)               |        lru_cache_add_lru() {
+ 1)   0.263 us    |          __lru_cache_add();
+ 1)   0.745 us    |        }
+ 1)   2.731 us    |      }
+ 1)   0.219 us    |      native_set_pte_at();
+ 1)   0.234 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.241 us    |        __wake_up_bit();
+ 1)   0.749 us    |      }
+ 1)   0.256 us    |      put_page();
+ 1) + 31.520 us   |    }
+ 1) + 45.821 us   |  }
+ 1)   0.264 us    |  up_read();
+ 1)               |  sys_munmap() {
+ 1)               |    profile_munmap() {
+ 1)               |      blocking_notifier_call_chain() {
+ 1)   0.244 us    |        __blocking_notifier_call_chain();
+ 1)   0.737 us    |      }
+ 1)   1.234 us    |    }
+ 1)               |    down_write() {
+ 1)   0.237 us    |      _cond_resched();
+ 1)   0.771 us    |    }
+ 1)               |    do_munmap() {
+ 1)   0.301 us    |      find_vma();
+ 1)               |      /* SNAP: do_munmap:  */
+ 1)               |      unmapDebugFunction() {
+ 1)               |        /* hit my unmapDebugFunction!!!! */
+ 1)               |        is_snapshot() {
+ 1)               |          /* this is a test */
+ 1)   0.267 us    |          strlen();
+ 1)   0.410 us    |          strncmp();
+ 1)               |          /* SNAP: is_snapshot: file name is snapshot_test, starts: 1 */
+ 1)   0.260 us    |          strlen();
+ 1)   0.350 us    |          strncmp();
+ 1)   3.649 us    |        }
+ 1)               |        /* is a snapshot */
+ 1)               |        /* start is a0000000 and end is a0008000 */
+ 1)               |        walk_page_range() {
+ 1)               |          /* secret number is 0 */
+ 1)   0.267 us    |          find_vma();
+ 1)               |          __kmap_atomic() {
+ 1)               |            kmap_atomic_prot() {
+ 1)   0.237 us    |              page_address();
+ 1)   0.752 us    |            }
+ 1)   1.234 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.828 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.538 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.538 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.527 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.520 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.519 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.515 us    |          }
+ 1)               |          each_pte_entry() {
+ 1)               |            /* SNAP: in each_pte_entry */
+ 1)   0.519 us    |          }
+ 1)   0.245 us    |          __kunmap_atomic();
+ 1)   9.912 us    |        }
+ 1) + 16.055 us   |      }
+ 1)   0.244 us    |      arch_unmap_area_topdown();
+ 1)               |      unmap_region() {
+ 1)               |        lru_add_drain() {
+ 1)               |          ____pagevec_lru_add() {
+ 1)   0.252 us    |            _raw_spin_lock_irq();
+ 1)               |            mem_cgroup_get_reclaim_stat_from_page() {
+ 1)   0.218 us    |              lookup_page_cgroup();
+ 1)   0.797 us    |            }
+ 1)   0.256 us    |            __inc_zone_state();
+ 1)               |            mem_cgroup_add_lru_list() {
+ 1)   0.230 us    |              lookup_page_cgroup();
+ 1)   0.733 us    |            }
+ 1)               |            mem_cgroup_get_reclaim_stat_from_page() {
+ 1)   0.218 us    |              lookup_page_cgroup();
+ 1)   0.681 us    |            }
+ 1)   0.237 us    |            __inc_zone_state();
+ 1)               |            mem_cgroup_add_lru_list() {
+ 1)   0.233 us    |              lookup_page_cgroup();
+ 1)   0.719 us    |            }
+ 1)               |            mem_cgroup_get_reclaim_stat_from_page() {
+ 1)   0.234 us    |              lookup_page_cgroup();
+ 1)   0.719 us    |            }
+ 1)   0.293 us    |            __inc_zone_state();
+ 1)               |            mem_cgroup_add_lru_list() {
+ 1)   0.353 us    |              lookup_page_cgroup();
+ 1)   0.846 us    |            }
+ 1)               |            mem_cgroup_get_reclaim_stat_from_page() {
+ 1)   0.214 us    |              lookup_page_cgroup();
+ 1)   0.670 us    |            }
+ 1)   0.301 us    |            __inc_zone_state();
+ 1)               |            mem_cgroup_add_lru_list() {
+ 1)   0.233 us    |              lookup_page_cgroup();
+ 1)   0.726 us    |            }
+ 1)               |            mem_cgroup_get_reclaim_stat_from_page() {
+ 1)   0.233 us    |              lookup_page_cgroup();
+ 1)   0.771 us    |            }
+ 1)   0.249 us    |            __inc_zone_state();
+ 1)               |            mem_cgroup_add_lru_list() {
+ 1)   0.214 us    |              lookup_page_cgroup();
+ 1)   0.696 us    |            }
+ 1)   0.346 us    |            release_pages();
+ 1) + 14.414 us   |          }
+ 1) + 14.960 us   |        }
+ 1)   0.241 us    |        get_mm_counter();
+ 1)   0.233 us    |        get_mm_counter();
+ 1)               |        unmap_vmas() {
+ 1)   0.233 us    |          mem_cgroup_uncharge_start();
+ 1)               |          __kmap_atomic() {
+ 1)               |            kmap_atomic_prot() {
+ 1)   0.414 us    |              page_address();
+ 1) + 83.583 us   |            }
+ 1) + 84.140 us   |          }
+ 1)   0.264 us    |          _raw_spin_lock();
+ 1)   0.237 us    |          vm_normal_page();
+ 1)               |          page_remove_rmap() {
+ 1)   0.233 us    |            PageHuge();
+ 1)               |            mem_cgroup_uncharge_page() {
+ 1)               |              __mem_cgroup_uncharge_common() {
+ 1)   0.233 us    |                lookup_page_cgroup();
+ 1)   0.282 us    |                mem_cgroup_charge_statistics();
+ 1)   0.225 us    |                memcg_check_events();
+ 1)   1.892 us    |              }
+ 1)   2.381 us    |            }
+ 1)               |            __dec_zone_page_state() {
+ 1)   0.249 us    |              __dec_zone_state();
+ 1)   0.722 us    |            }
+ 1)   4.518 us    |          }
+ 1)   0.234 us    |          __kunmap_atomic();
+ 1)   0.240 us    |          mem_cgroup_uncharge_end();
+ 1) + 95.808 us   |        }
+ 1)               |        free_pgtables() {
+ 1)               |          unlink_anon_vmas() {
+ 1)   0.244 us    |            _raw_spin_lock();
+ 1)               |            anon_vma_free() {
+ 1)   0.372 us    |              kmem_cache_free();
+ 1)   0.896 us    |            }
+ 1)   0.267 us    |            kmem_cache_free();
+ 1)   2.555 us    |          }
+ 1)               |          unlink_file_vma() {
+ 1)   0.289 us    |            _raw_spin_lock();
+ 1)               |            __remove_shared_vm_struct() {
+ 1)   0.308 us    |              vma_prio_tree_remove();
+ 1)   0.816 us    |            }
+ 1)   1.836 us    |          }
+ 1)               |          free_pgd_range() {
+ 1)   2.328 us    |            native_set_pmd();
+ 1)               |            ___pte_free_tlb() {
+ 1)               |              dec_zone_page_state() {
+ 1)               |                __dec_zone_page_state() {
+ 1)   0.245 us    |                  __dec_zone_state();
+ 1)   0.708 us    |                }
+ 1)   1.185 us    |              }
+ 1)   1.685 us    |            }
+ 1)   5.003 us    |          }
+ 1) + 10.465 us   |        }
+ 1)               |        flush_tlb_mm() {
+ 1)   4.503 us    |          native_flush_tlb();
+ 1)   5.368 us    |        }
+ 1)               |        free_pages_and_swap_cache() {
+ 1)   0.275 us    |          lru_add_drain();
+ 1)               |          release_pages() {
+ 1)   0.278 us    |            _raw_spin_lock_irqsave();
+ 1)   0.256 us    |            __dec_zone_state();
+ 1)               |            mem_cgroup_del_lru_list() {
+ 1)   0.233 us    |              lookup_page_cgroup();
+ 1)   0.779 us    |            }
+ 1)   0.263 us    |            _raw_spin_unlock_irqrestore();
+ 1)               |            __pagevec_free() {
+ 1)               |              free_hot_cold_page() {
+ 1)               |                free_pages_prepare() {
+ 1)   0.237 us    |                  page_address();
+ 1)   0.233 us    |                  page_address();
+ 1)   1.276 us    |                }
+ 1)   0.275 us    |                get_pageblock_flags_group();
+ 1)   2.343 us    |              }
+ 1)               |              free_hot_cold_page() {
+ 1)               |                free_pages_prepare() {
+ 1)   0.233 us    |                  page_address();
+ 1)   0.233 us    |                  page_address();
+ 1)   1.226 us    |                }
+ 1)   0.252 us    |                get_pageblock_flags_group();
+ 1)   2.212 us    |              }
+ 1)   5.285 us    |            }
+ 1)   8.490 us    |          }
+ 1)   9.494 us    |        }
+ 1) ! 138.756 us  |      }
+ 1)   0.218 us    |      vm_stat_account();
+ 1)               |      remove_vma() {
+ 1)   0.218 us    |        _cond_resched();
+ 1)   0.282 us    |        fput();
+ 1)   0.282 us    |        kmem_cache_free();
+ 1)   1.899 us    |      }
+ 1) ! 163.395 us  |    }
+ 1)   0.233 us    |    up_write();
+ 1) ! 170.433 us  |  }
+ 1)               |  sys_write() {
+ 1)   0.267 us    |    fget_light();
+ 1)               |    vfs_write() {
+ 1)               |      rw_verify_area() {
+ 1)               |        security_file_permission() {
+ 1)               |          apparmor_file_permission() {
+ 1)   0.377 us    |            common_file_perm();
+ 1)   0.846 us    |          }
+ 1)   1.385 us    |        }
+ 1)   1.926 us    |      }
+ 1)               |      __kmalloc() {
+ 1)   0.233 us    |        _cond_resched();
+ 1)   0.971 us    |      }
+ 1)               |      _copy_from_user() {
+ 1)   0.237 us    |        _cond_resched();
+ 1)   0.734 us    |      }
+ 1)               |      /* Out 2critical area */
+ 1)   0.278 us    |      kfree();
+ 1)   0.237 us    |      __fsnotify_parent();
+ 1)               |      fsnotify() {
+ 1)   0.252 us    |        __srcu_read_lock();
+ 1)   0.233 us    |        __srcu_read_unlock();
+ 1)   1.267 us    |      }
+ 1)   8.144 us    |    }
+ 1)   9.273 us    |  }
+ 1)               |  sys_lseek() {
+ 1)   0.241 us    |    fget_light();
+ 1)               |    vfs_llseek() {
+ 1)               |      default_llseek() {
+ 1)               |        mutex_lock() {
+ 1)   0.230 us    |          _cond_resched();
+ 1)   0.760 us    |        }
+ 1)   0.308 us    |        mutex_unlock();
+ 1)   1.832 us    |      }
+ 1)   2.329 us    |    }
+ 1)   3.438 us    |  }
+ 1)   0.418 us    |  down_read_trylock();
+ 1)   0.240 us    |  _cond_resched();
+ 1)   0.309 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.237 us    |        page_address();
+ 1)   0.745 us    |      }
+ 1)   1.275 us    |    }
+ 1)   0.237 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.467 us    |        find_get_page();
+ 1)   0.211 us    |        _cond_resched();
+ 1)   1.475 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.219 us    |          page_address();
+ 1)   0.658 us    |        }
+ 1)   1.087 us    |      }
+ 1)   0.903 us    |      _raw_spin_lock();
+ 1)   0.274 us    |      page_add_file_rmap();
+ 1)   3.919 us    |      native_set_pte_at();
+ 1)   0.237 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.244 us    |        __wake_up_bit();
+ 1)   0.767 us    |      }
+ 1) + 37.704 us   |    }
+ 1) + 40.308 us   |  }
+ 1)   0.342 us    |  up_read();
+ 1)   0.437 us    |  down_read_trylock();
+ 1)   0.240 us    |  _cond_resched();
+ 1)   0.259 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.245 us    |        page_address();
+ 1)   0.752 us    |      }
+ 1)   1.230 us    |    }
+ 1)   0.244 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.530 us    |        find_get_page();
+ 1)   0.225 us    |        _cond_resched();
+ 1)   1.592 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.263 us    |          page_address();
+ 1)   0.741 us    |        }
+ 1)   1.188 us    |      }
+ 1)   0.391 us    |      _raw_spin_lock();
+ 1)   0.316 us    |      page_add_file_rmap();
+ 1)   2.701 us    |      native_set_pte_at();
+ 1)   0.240 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.237 us    |        __wake_up_bit();
+ 1)   0.748 us    |      }
+ 1) + 12.463 us   |    }
+ 1) + 15.133 us   |  }
+ 1)   0.271 us    |  up_read();
+ 1)   0.410 us    |  down_read_trylock();
+ 1)   0.233 us    |  _cond_resched();
+ 1)   0.241 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.745 us    |      }
+ 1)   1.268 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.335 us    |        find_get_page();
+ 1)   0.218 us    |        _cond_resched();
+ 1)   1.444 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.237 us    |          page_address();
+ 1)   0.711 us    |        }
+ 1)   1.174 us    |      }
+ 1)   0.267 us    |      _raw_spin_lock();
+ 1)   0.241 us    |      page_add_file_rmap();
+ 1)   2.434 us    |      native_set_pte_at();
+ 1)   0.233 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.237 us    |        __wake_up_bit();
+ 1)   0.745 us    |      }
+ 1)   8.678 us    |    }
+ 1) + 11.240 us   |  }
+ 1)   0.260 us    |  up_read();
+ 1)   0.387 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.241 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.234 us    |        page_address();
+ 1)   0.726 us    |      }
+ 1)   1.245 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.305 us    |        find_get_page();
+ 1)   0.225 us    |        _cond_resched();
+ 1)   1.395 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.237 us    |          page_address();
+ 1)   0.711 us    |        }
+ 1)   1.174 us    |      }
+ 1)   0.271 us    |      _raw_spin_lock();
+ 1)   0.245 us    |      page_add_file_rmap();
+ 1)   2.377 us    |      native_set_pte_at();
+ 1)   0.233 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.233 us    |        __wake_up_bit();
+ 1)   0.741 us    |      }
+ 1)   8.584 us    |    }
+ 1) + 11.097 us   |  }
+ 1)   0.253 us    |  up_read();
+ 1)   0.398 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.245 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.734 us    |      }
+ 1)   1.249 us    |    }
+ 1)   0.234 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.387 us    |        find_get_page();
+ 1)   0.233 us    |        _cond_resched();
+ 1)   1.403 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.237 us    |          page_address();
+ 1)   0.786 us    |        }
+ 1)   1.268 us    |      }
+ 1)   0.263 us    |      _raw_spin_lock();
+ 1)   0.248 us    |      page_add_file_rmap();
+ 1)   2.599 us    |      native_set_pte_at();
+ 1)   0.237 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.241 us    |        __wake_up_bit();
+ 1)   0.748 us    |      }
+ 1)   9.085 us    |    }
+ 1) + 14.235 us   |  }
+ 1)   0.259 us    |  up_read();
+ 1)   0.395 us    |  down_read_trylock();
+ 1)   0.236 us    |  _cond_resched();
+ 1)   0.245 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.719 us    |      }
+ 1)   1.185 us    |    }
+ 1)   0.252 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.316 us    |        find_get_page();
+ 1)   0.233 us    |        _cond_resched();
+ 1)   1.328 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.222 us    |          page_address();
+ 1)   0.681 us    |        }
+ 1)   1.133 us    |      }
+ 1)   0.252 us    |      _raw_spin_lock();
+ 1)   0.248 us    |      page_add_file_rmap();
+ 1)   2.483 us    |      native_set_pte_at();
+ 1)   0.233 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.331 us    |        __wake_up_bit();
+ 1)   0.839 us    |      }
+ 1)   8.663 us    |    }
+ 1) + 11.153 us   |  }
+ 1)   0.252 us    |  up_read();
+ 1)   0.392 us    |  down_read_trylock();
+ 1)   0.241 us    |  _cond_resched();
+ 1)   0.244 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.237 us    |        page_address();
+ 1)   0.718 us    |      }
+ 1)   1.245 us    |    }
+ 1)   0.234 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.316 us    |        find_get_page();
+ 1)   0.207 us    |        _cond_resched();
+ 1)   1.290 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.218 us    |          page_address();
+ 1)   0.711 us    |        }
+ 1)   1.155 us    |      }
+ 1)   0.275 us    |      _raw_spin_lock();
+ 1)   0.249 us    |      page_add_file_rmap();
+ 1)   2.434 us    |      native_set_pte_at();
+ 1)   0.229 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.316 us    |        __wake_up_bit();
+ 1)   0.828 us    |      }
+ 1)   8.570 us    |    }
+ 1) + 11.082 us   |  }
+ 1)   0.256 us    |  up_read();
+ 1)   0.395 us    |  down_read_trylock();
+ 1)   0.316 us    |  _cond_resched();
+ 1)   0.241 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.230 us    |        page_address();
+ 1)   0.805 us    |      }
+ 1)   1.268 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.297 us    |        find_get_page();
+ 1)   0.233 us    |        _cond_resched();
+ 1)   1.309 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.233 us    |          page_address();
+ 1)   0.790 us    |        }
+ 1)   1.238 us    |      }
+ 1)   0.267 us    |      _raw_spin_lock();
+ 1)   0.229 us    |      page_add_file_rmap();
+ 1)   2.340 us    |      native_set_pte_at();
+ 1)   0.237 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.342 us    |        __wake_up_bit();
+ 1)   0.843 us    |      }
+ 1)   8.610 us    |    }
+ 1) + 11.135 us   |  }
+ 1)   0.339 us    |  up_read();
+ 1)   0.403 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.245 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.230 us    |        page_address();
+ 1)   0.719 us    |      }
+ 1)   1.238 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.403 us    |        find_get_page();
+ 1)   0.229 us    |        _cond_resched();
+ 1)   1.410 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.218 us    |          page_address();
+ 1)   0.704 us    |        }
+ 1)   1.140 us    |      }
+ 1)   0.271 us    |      _raw_spin_lock();
+ 1)   0.230 us    |      page_add_file_rmap();
+ 1)   2.302 us    |      native_set_pte_at();
+ 1)   0.233 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.237 us    |        __wake_up_bit();
+ 1)   0.741 us    |      }
+ 1)   8.441 us    |    }
+ 1) + 10.935 us   |  }
+ 1)   0.256 us    |  up_read();
+ 1)               |  sys_fstat64() {
+ 1)               |    vfs_fstat() {
+ 1)   0.293 us    |      fget();
+ 1)               |      vfs_getattr() {
+ 1)               |        security_inode_getattr() {
+ 1)   0.535 us    |          apparmor_inode_getattr();
+ 1)   1.294 us    |        }
+ 1)   0.364 us    |        generic_fillattr();
+ 1)   2.551 us    |      }
+ 1)   0.245 us    |      fput();
+ 1)   4.052 us    |    }
+ 1)               |    cp_new_stat64() {
+ 1)               |      copy_to_user() {
+ 1)   0.215 us    |        _cond_resched();
+ 1)   0.756 us    |      }
+ 1)   1.342 us    |    }
+ 1)   6.102 us    |  }
+ 1)               |  sys_mmap_pgoff() {
+ 1)               |    down_write() {
+ 1)   0.230 us    |      _cond_resched();
+ 1)   0.718 us    |    }
+ 1)               |    do_mmap_pgoff() {
+ 1)               |      /* TIM: in do_mmap_pgoff  */
+ 1)               |      get_unmapped_area() {
+ 1)               |        arch_get_unmapped_area_topdown() {
+ 1)   0.308 us    |          find_vma();
+ 1)   0.782 us    |        }
+ 1)   1.256 us    |      }
+ 1)               |      security_file_mmap() {
+ 1)               |        apparmor_file_mmap() {
+ 1)   0.316 us    |          cap_file_mmap();
+ 1)   0.241 us    |          common_mmap();
+ 1)   1.336 us    |        }
+ 1)   1.960 us    |      }
+ 1)               |      mmap_region() {
+ 1)               |        security_vm_enough_memory() {
+ 1)               |          cap_vm_enough_memory() {
+ 1)   0.327 us    |            __vm_enough_memory();
+ 1)   0.929 us    |          }
+ 1)   1.415 us    |        }
+ 1)               |        vma_merge() {
+ 1)               |          vma_adjust() {
+ 1)   0.248 us    |            _raw_spin_lock();
+ 1)   0.850 us    |          }
+ 1)   1.508 us    |        }
+ 1)   0.241 us    |        vm_stat_account();
+ 1)   4.552 us    |      }
+ 1)   9.788 us    |    }
+ 1)   0.252 us    |    up_write();
+ 1) + 11.747 us   |  }
+ 1)   0.395 us    |  down_read_trylock();
+ 1)   0.244 us    |  _cond_resched();
+ 1)   0.316 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.240 us    |        page_address();
+ 1)   0.749 us    |      }
+ 1)   1.208 us    |    }
+ 1)   0.225 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.286 us    |        find_get_page();
+ 1)   0.230 us    |        _cond_resched();
+ 1)   1.347 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.245 us    |          page_address();
+ 1)   0.744 us    |        }
+ 1)   1.212 us    |      }
+ 1)   0.324 us    |      _raw_spin_lock();
+ 1)   0.244 us    |      page_add_file_rmap();
+ 1)   2.434 us    |      native_set_pte_at();
+ 1)   0.237 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.241 us    |        __wake_up_bit();
+ 1)   0.752 us    |      }
+ 1)   8.689 us    |    }
+ 1) + 11.138 us   |  }
+ 1)   0.259 us    |  up_read();
+ 1)   0.391 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.274 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.234 us    |        page_address();
+ 1)   0.733 us    |      }
+ 1)   1.252 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    anon_vma_prepare() {
+ 1)   0.230 us    |      _cond_resched();
+ 1)   0.704 us    |    }
+ 1)               |    __alloc_pages_nodemask() {
+ 1)   0.215 us    |      _cond_resched();
+ 1)   0.219 us    |      next_zones_zonelist();
+ 1)               |      get_page_from_freelist() {
+ 1)   0.234 us    |        next_zones_zonelist();
+ 1)               |        zone_watermark_ok() {
+ 1)   0.248 us    |          __zone_watermark_ok();
+ 1)   0.737 us    |        }
+ 1)               |        __kmap_atomic() {
+ 1)               |          kmap_atomic_prot() {
+ 1)   0.233 us    |            page_address();
+ 1)   0.707 us    |          }
+ 1)   1.170 us    |        }
+ 1)   0.233 us    |        __kunmap_atomic();
+ 1)   4.186 us    |      }
+ 1)   5.722 us    |    }
+ 1)               |    mem_cgroup_newpage_charge() {
+ 1)               |      mem_cgroup_charge_common() {
+ 1)   0.241 us    |        lookup_page_cgroup();
+ 1)   0.358 us    |        __mem_cgroup_try_charge();
+ 1)               |        __mem_cgroup_commit_charge() {
+ 1)   0.339 us    |          mem_cgroup_charge_statistics();
+ 1)   0.234 us    |          memcg_check_events();
+ 1)   1.933 us    |        }
+ 1)   3.514 us    |      }
+ 1)   3.999 us    |    }
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.222 us    |        page_address();
+ 1)   0.655 us    |      }
+ 1)   1.106 us    |    }
+ 1)   0.240 us    |    _raw_spin_lock();
+ 1)               |    page_add_new_anon_rmap() {
+ 1)               |      __inc_zone_page_state() {
+ 1)   0.215 us    |        __inc_zone_state();
+ 1)   0.801 us    |      }
+ 1)   0.237 us    |      page_evictable();
+ 1)               |      lru_cache_add_lru() {
+ 1)   0.267 us    |        __lru_cache_add();
+ 1)   0.737 us    |      }
+ 1)   2.881 us    |    }
+ 1)   2.806 us    |    native_set_pte_at();
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1) + 22.326 us   |  }
+ 1)   0.263 us    |  up_read();
+ 1)   0.395 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.293 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.726 us    |      }
+ 1)   1.241 us    |    }
+ 1)   0.237 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.338 us    |        find_get_page();
+ 1)   0.219 us    |        _cond_resched();
+ 1)   1.429 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.237 us    |          page_address();
+ 1)   0.707 us    |        }
+ 1)   1.167 us    |      }
+ 1)   0.263 us    |      _raw_spin_lock();
+ 1)   0.237 us    |      page_add_file_rmap();
+ 1)   2.340 us    |      native_set_pte_at();
+ 1)   0.233 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.240 us    |        __wake_up_bit();
+ 1)   0.749 us    |      }
+ 1)   8.621 us    |    }
+ 1) + 11.130 us   |  }
+ 1)   0.256 us    |  up_read();
+ 1)   0.388 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.263 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.237 us    |        page_address();
+ 1)   0.729 us    |      }
+ 1)   1.249 us    |    }
+ 1)   0.237 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.433 us    |        find_get_page();
+ 1)   0.218 us    |        _cond_resched();
+ 1)   1.418 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.237 us    |          page_address();
+ 1)   0.794 us    |        }
+ 1)   1.242 us    |      }
+ 1)   0.267 us    |      _raw_spin_lock();
+ 1)   0.230 us    |      page_add_file_rmap();
+ 1)   2.314 us    |      native_set_pte_at();
+ 1)   0.230 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.237 us    |        __wake_up_bit();
+ 1)   0.745 us    |      }
+ 1)   8.558 us    |    }
+ 1) + 13.595 us   |  }
+ 1)   0.256 us    |  up_read();
+ 1)   0.391 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.249 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.718 us    |      }
+ 1)   1.234 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.312 us    |        find_get_page();
+ 1)   0.226 us    |        _cond_resched();
+ 1)   1.403 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.234 us    |          page_address();
+ 1)   0.703 us    |        }
+ 1)   1.167 us    |      }
+ 1)   0.263 us    |      _raw_spin_lock();
+ 1)   0.241 us    |      page_add_file_rmap();
+ 1)   2.430 us    |      native_set_pte_at();
+ 1)   0.229 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.354 us    |        __wake_up_bit();
+ 1)   0.853 us    |      }
+ 1)   8.776 us    |    }
+ 1) + 11.263 us   |  }
+ 1)   0.323 us    |  up_read();
+ 1)   0.391 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.241 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.715 us    |      }
+ 1)   1.234 us    |    }
+ 1)   0.233 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.312 us    |        find_get_page();
+ 1)   0.225 us    |        _cond_resched();
+ 1)   1.407 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.237 us    |          page_address();
+ 1)   0.707 us    |        }
+ 1)   1.166 us    |      }
+ 1)   0.264 us    |      _raw_spin_lock();
+ 1)   0.241 us    |      page_add_file_rmap();
+ 1)   2.306 us    |      native_set_pte_at();
+ 1)   0.237 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.233 us    |        __wake_up_bit();
+ 1)   0.734 us    |      }
+ 1)   8.524 us    |    }
+ 1) + 11.014 us   |  }
+ 1)   0.252 us    |  up_read();
+ 1)   0.391 us    |  down_read_trylock();
+ 1)   0.233 us    |  _cond_resched();
+ 1)   0.245 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.233 us    |        page_address();
+ 1)   0.723 us    |      }
+ 1)   1.245 us    |    }
+ 1)   0.234 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.323 us    |        find_get_page();
+ 1)   0.218 us    |        _cond_resched();
+ 1)   1.313 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.233 us    |          page_address();
+ 1)   0.794 us    |        }
+ 1)   1.238 us    |      }
+ 1)   0.591 us    |      _raw_spin_lock();
+ 1)   0.248 us    |      page_add_file_rmap();
+ 1)   2.505 us    |      native_set_pte_at();
+ 1)   0.229 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.241 us    |        __wake_up_bit();
+ 1)   0.753 us    |      }
+ 1)   9.107 us    |    }
+ 1) + 11.608 us   |  }
+ 1)   0.256 us    |  up_read();
+ 1)   0.395 us    |  down_read_trylock();
+ 1)   0.237 us    |  _cond_resched();
+ 1)   0.245 us    |  find_vma();
+ 1)               |  handle_mm_fault() {
+ 1)               |    __kmap_atomic() {
+ 1)               |      kmap_atomic_prot() {
+ 1)   0.229 us    |        page_address();
+ 1)   0.722 us    |      }
+ 1)   1.245 us    |    }
+ 1)   0.234 us    |    __kunmap_atomic();
+ 1)               |    __do_fault() {
+ 1)               |      filemap_fault() {
+ 1)   0.320 us    |        find_get_page();
+ 1)   0.226 us    |        _cond_resched();
+ 1)   1.305 us    |      }
+ 1)               |      __kmap_atomic() {
+ 1)               |        kmap_atomic_prot() {
+ 1)   0.222 us    |          page_address();
+ 1)   0.711 us    |        }
+ 1)   1.155 us    |      }
+ 1)   0.259 us    |      _raw_spin_lock();
+ 1)   0.237 us    |      page_add_file_rmap();
+ 1)   2.329 us    |      native_set_pte_at();
+ 1)   0.237 us    |      __kunmap_atomic();
+ 1)               |      unlock_page() {
+ 1)   0.241 us    |        __wake_up_bit();
+ 1)   0.748 us    |      }
+ 1)   8.437 us    |    }
+ 1) + 10.939 us   |  }
+ 1)   0.256 us    |  up_read();
+ 1)               |  sys_write() {
+ 1)   0.267 us    |    fget_light();
+ 1)               |    vfs_write() {
+ 1)               |      rw_verify_area() {
+ 1)               |        security_file_permission() {
+ 1)               |          apparmor_file_permission() {
+ 1)   0.324 us    |            common_file_perm();
+ 1)   0.793 us    |          }
+ 1)   1.312 us    |        }
+ 1)   1.839 us    |      }
+ 1)               |      _copy_from_user() {
+ 1)   0.233 us    |        _cond_resched();
+ 1)   0.730 us    |      }

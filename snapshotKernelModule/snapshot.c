@@ -12,13 +12,14 @@
 #include <linux/list.h>
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
-#include "test.h"
 
 MODULE_LICENSE("GPL");
 
 #define SNAPSHOT_PREFIX "snapshot_"
 
 #define SNAPSHOT_DEBUG Y
+
+struct snapshot_version_list * _snapshot_create_version_list();
 
 /*a structure that defines a node in the pte list. Each version of the snapshot memory keeps a list
 of pte values that have changed. A subscriber traverses the pte_list for each version that has changed
@@ -34,7 +35,6 @@ snapshot*/
 struct snapshot_version_list{
 	struct list_head list;
 	struct snapshot_pte_list * pte_list;
-	int version_number;					//TODO: get rid of this, only for debugging
 };
 
 int debugging_each_pte_entry (pte_t * pte, unsigned long addr, unsigned long next, struct mm_walk * walker){
@@ -202,7 +202,12 @@ pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
 	
 	//pte = pte_offset_map(pmd, addr);
 	
+	//trace_printk("the pmd is %p, pmd_present is %d\n", pmd, pmd_present(*pmd));
+	//return NULL;
+	
 	pte = pte_alloc_map(mm, pmd, addr);
+	
+	//return NULL;
 	
 	if (!pte){
 		trace_printk("pte error\n");
@@ -218,7 +223,6 @@ pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
 }
 
 int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma_read_only, struct mm_struct * mm){
-	
 	struct page * page, * current_page, * page_test;	
 	unsigned long readonly_addr;
 	//trace_printk("SNAP: in each_pte_entry\n");
@@ -235,10 +239,10 @@ int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma
 		page_mapped_result = page_mapped_in_vma(page, vma_read_only);
 		if (!page_mapped_result){
 			readonly_addr = (page->index << PAGE_SHIFT) + vma_read_only->vm_start;	//get the new address
-			dest_pte = get_pte_entry_from_address( vma_read_only->vm_mm, readonly_addr);	
-			//trace_printk("dest_pte %lu\n", pte_val(*dest_pte));
+			trace_printk("COPY PTE: vma_read_only: %p, vma_read_only->vm_start: %08x, readonly_addr %08x, mm %p\n", 
+						vma_read_only, vma_read_only->vm_start, readonly_addr, vma_read_only->vm_mm);
+			dest_pte = get_pte_entry_from_address( vma_read_only->vm_mm, readonly_addr);
 			current_page = pte_page(*dest_pte);	//getting the page struct for the pte we just grabbed
-			//trace_printk("current_page %p page is %p page index %d\n", current_page, page, page->index);
 			if (dest_pte){
 				//increment the ref count for this page
 				get_page(page);												
@@ -255,64 +259,34 @@ int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma
 				page->mapping = vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping;
 				set_pte(pte, tmp_master_pte);
 				pte_unmap(dest_pte);	
-				
-				/*Now we need to mark the page in the radix tree as dirty so that the 
-				file system code will write it out to disk*/
+				//Now we need to mark the page in the radix tree as dirty so that the 
+				//file system code will write it out to disk
 				spin_lock_irq(&(page->mapping->tree_lock));
                 SetPageDirty(page);
-                
                 //look to see if this guy is in the radix tree
                 page_test = radix_tree_lookup(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index);
-                trace_printk("just looked up the page %p, %d at mapping %p file %p\n", 
-                				page_test, 
-                				page_test->index,
-                				vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping,
-                				vma_read_only->vm_file);
-                if (!page_test)
-                	goto add_to_radix;
-                else{
-                	trace_printk("now deleting the page... %p %p %p %p %p\n", 
-                					page_test,
-                					current_page,
-                					page, 
-                					page_test->mapping, 
-                					vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping);
-                	radix_tree_delete(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page_test->index);
-					page_test->mapping = NULL;
-					vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->nrpages--;
+                if (page_test != page){
+	                trace_printk("just looked up the page %p, %d at mapping %p file %p, page test is page? %d\n", 
+	                				page_test, 
+	                				page_test->index,
+	                				vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping,
+	                				vma_read_only->vm_file,
+	                				page_test == page);
+	                if (page_test){
+	                	radix_tree_delete(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page_test->index);
+						page_test->mapping = NULL;
+						vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->nrpages--;
+	                }
+	        		spin_unlock_irq(&page->mapping->tree_lock);
+	               	lock_page(page);
+	               	add_to_page_cache_locked(page, vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping, page->index, GFP_KERNEL);
+	               	radix_tree_tag_set(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index, PAGECACHE_TAG_DIRTY);
+	               	unlock_page(page);
                 }
-                
-                add_to_radix:
-         			spin_unlock_irq(&page->mapping->tree_lock);
-                	page_test = radix_tree_lookup(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index);
-                	page_test = NULL;
-                	//trace_printk("just before the add, what's in there? %p\n", page_test);
-
-                	lock_page(page);
-                	add_to_page_cache_locked(page, vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping, page->index, GFP_KERNEL);
-                	radix_tree_tag_set(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index, PAGECACHE_TAG_DIRTY);
-                	unlock_page(page);
-				
-				
-				page_test = radix_tree_lookup(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index);
-				//trace_printk("now what? the page is %p \n", page_test);
-				
-				/*printk("the dirty page is .... %p, current page is %p\n", page, current_page);
-				trace_printk("the dirty page is .... %p, current page is %p\n", page, current_page);
-				SetPageDirty(page);
-				lock_page(page);
-				lock_page(current_page);
-				trace_printk("getting ready to remove\n");
-				//remove_from_page_cache(current_page);
-				//trace_printk("getting ready to add\n");
-				//add_to_page_cache_locked(page, vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping, page->index, GFP_KERNEL);
-                trace_printk("done with add\n");
-                printk("removed %p from the page cachce and added %p!!!!\n", current_page, page);
-				unlock_page(page);
-				unlock_page(current_page);
-				//page_test = radix_tree_lookup(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index);
-				//printk("ok, what is it now %p, index %d???\n", page_test, page->index);*/
-			}									
+                else{
+                	spin_unlock_irq(&page->mapping->tree_lock);	
+                }
+			}							
 		}
 	}
 	return 0;
@@ -345,10 +319,10 @@ void walk_page_table(struct vm_area_struct * vma){
 int get_snapshot (struct vm_area_struct * vma){
 	struct vm_area_struct * master_vma;
 	/*for iterating through the list*/
-	struct list_head * pos;
+	struct list_head * pos, * pos_outer;
 	/*for storing pte values from list*/
 	struct snapshot_pte_list * tmp_pte_list;
-	struct snapshot_version_list * latest_version_entry;
+	struct snapshot_version_list * latest_version_entry, * new_version_entry;
 	
 	trace_printk("SNAP: get_snapshot \n");
 	if (vma && vma->vm_mm && vma->vm_file){
@@ -359,21 +333,27 @@ int get_snapshot (struct vm_area_struct * vma){
 				struct snapshot_version_list * version_list = (struct snapshot_version_list *)master_vma->snapshot_pte_list;
 				//get latest version list
 				if (version_list && version_list->list.prev){
-					latest_version_entry = list_entry( version_list->list.prev, struct snapshot_version_list, list);
-					if (latest_version_entry && latest_version_entry->pte_list){
-						list_for_each(pos, &latest_version_entry->pte_list->list){
-							tmp_pte_list = list_entry(pos, struct snapshot_pte_list, list);
-							if (tmp_pte_list){
-								trace_printk("traversing the pte list: %lu, %p %p, %08x\n", pte_val(*tmp_pte_list->pte), tmp_pte_list, tmp_pte_list->pte, tmp_pte_list->addr);
-								copy_pte_entry (tmp_pte_list->pte, tmp_pte_list->addr, vma, master_vma->vm_mm);
+					//we need traverse the list of version lists
+					list_for_each_prev(pos_outer, &version_list->list){
+						latest_version_entry = list_entry( pos_outer, struct snapshot_version_list, list);
+						if (latest_version_entry && latest_version_entry->pte_list){
+							list_for_each(pos, &latest_version_entry->pte_list->list){
+								tmp_pte_list = list_entry(pos, struct snapshot_pte_list, list);
+								if (tmp_pte_list){
+									trace_printk("traversing the pte list: %lu, %p %p, %08x\n", pte_val(*tmp_pte_list->pte), tmp_pte_list, tmp_pte_list->pte, tmp_pte_list->addr);
+									copy_pte_entry (tmp_pte_list->pte, tmp_pte_list->addr, vma, master_vma->vm_mm);
+								}
 							}
 						}
 					}
+					/*we need to add a new version list now*/
+					new_version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
+					INIT_LIST_HEAD(&new_version_entry->list);
+					new_version_entry->pte_list = NULL;
+					/*add the entry to the list*/
+					list_add(&new_version_entry->list, &version_list->list);
 				}
 			}
-			
-			
-			//walk_master_vma_page_table(master_vma, vma);
 		}
 	}
 	
@@ -403,7 +383,6 @@ struct snapshot_version_list * _snapshot_create_version_list(){
 	/*now we need to add our first entry*/
 	struct snapshot_version_list * version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
 	INIT_LIST_HEAD(&version_entry->list);
-	version_entry->version_number = 1;
 	version_entry->pte_list = NULL;
 	/*add the entry to the list*/
 	list_add(&version_entry->list, &version_list->list);

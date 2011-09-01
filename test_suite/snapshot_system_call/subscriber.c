@@ -6,6 +6,7 @@
 
 #include "shmUtility.h"
 #include "ftrace.h"
+#include "string.h"
 
 struct snap_message{
 	unsigned int number;
@@ -49,16 +50,12 @@ int main(int argc, char ** argv){
 	int error_count = 0;
 	
 	//ftrace_on(tracer);
-	//ftrace_write_to_trace(tracer,"\n\n\n\n\nSUBSCRIBER: opening shared memory\n");
+	//ftrace_write_to_trace(tracer,"\n\n\n\n\nSUBSCRIBER!!!: opening shared memory\n");
 	void * mem = coreUtil_openSharedMemory( "snapshot_test_shm" , (void *)0xA0000000, atoi(argv[2]), SHM_CLIENT, NULL);
 	//ftrace_write_to_trace(tracer,"SUBSCRIBER: done opening shared memory\n");
 	//ftrace_off(tracer);
-	printf("done opening\n");
 	while(1){
-		//printf("trying to receive\n");
 		mq_receive(new_mq, (char *)&message, sizeof(struct snap_message), NULL);
-		//printf("got something\n");
-		
 		//semaphore
 		if (message.exit_flag){
 			if (error_count)
@@ -70,33 +67,30 @@ int main(int argc, char ** argv){
 		}
 		else{
 			sem_wait(shm_sem);
-			printf("got something....done waiting\n");
 			char ftrace_message[200];
 			sprintf(ftrace_message, "\n\n\n\n\n\n\n\nWTF!!! CALLING MSYNC FOR PROCESS %s\n\n", argv[1]);
 			call_msync(mem,tracer, ftrace_message, atoi(argv[2]));
-			printf("Just returned from msync\n");
-			
 			int byte_offset = message.page * (1<<12) + message.byte_offset;
-			
-			//ftrace_on(tracer);
-			//ftrace_write_to_trace(tracer,"\n\n\n\n\nSUBSCRIBER: reading from shared mem!!!\n");
+				
+			//if (strcmp(argv[1], "1") == 0){
+				ftrace_on(tracer);
+				ftrace_write_to_trace(tracer,"\n\n\n\n\nSUBSCRIBER: reading from shared mem!!!\n");
+			//}
 			int * target = (int *)(mem + byte_offset);
-			//ftrace_write_to_trace(tracer,"SUBSCRIBER: done reading shared memory\n");
-			//ftrace_off(tracer);
-			
-			
-			//printf("SUB: read at %p, val is %d\n", target, *target);
+			int result = *target;
+			//if (strcmp(argv[1], "1") == 0){
+				ftrace_write_to_trace(tracer,"SUBSCRIBER: done reading shared memory\n");
+				ftrace_off(tracer);	
+			//}
+			printf("\n\nSUB %s: read at %p, val is %d, message val is %d\n\n", argv[1], target, result, message.number);
 			//printf("looking at to %p, val is %d, expected value is %d\n", target, *target, message.number);
-			if (*target != message.number){
+			if (result != message.number){
 				++error_count;	
 			}
 			sem_post(shm_sem);
-			
 			struct snap_message message;
 			message.exit_flag = 1;
-			printf("sending to main queue!\n");
 			mq_send(main_mq, (char *)&message, sizeof(struct snap_message), 0);
-			printf("done sending to main queue!\n");
 		}
 	}
 }

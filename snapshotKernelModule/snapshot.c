@@ -34,52 +34,9 @@ struct snapshot_pte_list{
 snapshot*/
 struct snapshot_version_list{
 	struct list_head list;
+	int ref_count;
 	struct snapshot_pte_list * pte_list;
 };
-
-int debugging_each_pte_entry (pte_t * pte, unsigned long addr, unsigned long next, struct mm_walk * walker){
-	
-	unsigned long pfn = pte_pfn(*pte);
-	struct page * page = pte_page(*pte);
-	
-	trace_printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, file: %d, %p, pfn: %lu, pfn_page: %p, %d, %p %p \n", 
-					pte_val(*pte),
-					pte_dirty(*pte),
-					pte_write(*pte),
-					pte_file(*pte),
-					pte,
-					pfn,
-					pfn_to_page(pfn),
-					PageAnon(page),
-					page->mapping,
-					page );
-					
-	/*printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, file: %d, %p, pfn: %lu, pfn_page: %p, %d, %p %p \n", 
-					pte_val(*pte),
-					pte_dirty(*pte),
-					pte_write(*pte),
-					pte_file(*pte),
-					pte,
-					pfn,
-					pfn_to_page(pfn),
-					PageAnon(page),
-					page->mapping,
-					page );*/
-							
-	return 0;
-}
-
-void debugging_pte ( struct vm_area_struct * vma ){
-	
-	struct mm_walk pt_walker;
-	memset(&pt_walker, 0, sizeof(struct mm_walk));	//need to zero it out so all of the function ptrs are NULL
-	pt_walker.pte_entry = debugging_each_pte_entry;
-	pt_walker.mm = vma->vm_mm;
-	
-	trace_printk("SNAP: vma info: start: %08x\n", vma->vm_start);
-	
-	walk_page_range(vma->vm_start, vma->vm_end, &pt_walker);	//calls a function outside this module that handles this
-}
 
 int is_snapshot (struct vm_area_struct * vma, struct mm_struct * mm, struct file * f){
 	if (f && f->f_path.dentry){
@@ -106,30 +63,7 @@ int is_snapshot_read_only (struct vm_area_struct * vma){
 						!(vma->vm_flags & VM_WRITE),
 						vma );
 		#endif
-		result = ( vma->vm_file && is_snapshot(NULL, NULL, vma->vm_file) && !(vma->vm_flags & VM_WRITE) );
-		if (is_snapshot(NULL, NULL, vma->vm_file) && !result){
-			trace_printk("SNAP: I am the master (hopefully)\n");
-			printk(KERN_INFO "Master msync with SetPageDirty\n");
-
-			if (vma->vm_file->f_path.dentry->d_inode->i_mapping){
-				page_test = radix_tree_lookup(&vma->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, 0);
-				if (page_test){
-					trace_printk("page is 0 : %p, mapping %p file %p\n", page_test, vma->vm_file->f_path.dentry->d_inode->i_mapping, vma->vm_file);
-				}
-				
-				page_test = radix_tree_lookup(&vma->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, 1);
-				if (page_test){
-					trace_printk("page is 1 : %p mapping %p file %p\n", page_test, vma->vm_file->f_path.dentry->d_inode->i_mapping, vma->vm_file);
-				}
-				
-				page_test = radix_tree_lookup(&vma->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, 2);
-				if (page_test){	
-					trace_printk("page is 2 : %p  mapping %p file %p\n", page_test, vma->vm_file->f_path.dentry->d_inode->i_mapping, vma->vm_file);	
-				}
-			}
-			debugging_pte(vma);	
-		}
-		return result;
+		return ( vma->vm_file && is_snapshot(NULL, NULL, vma->vm_file) && !(vma->vm_flags & VM_WRITE) );
 	}
 	else{
 		return 0;
@@ -144,7 +78,6 @@ int is_snapshot_master (struct vm_area_struct * vma){
 					(vma->vm_flags & VM_WRITE),
 					vma );
 	#endif
-	
 	return ( vma->vm_file && is_snapshot(NULL, NULL, vma->vm_file) && vma->vm_flags & VM_WRITE );		
 }
 
@@ -158,18 +91,22 @@ struct vm_area_struct * get_master_vma (struct file * vm_file, struct vm_area_st
 		{
 			addr_space = vm_file->f_path.dentry->d_inode->i_mapping;
 			//now lets loop through the vma's associated with this file
-			trace_printk("in get_master_vma\n");
-	
-			trace_printk("the current vma is %p, the mapping is %p\n", vma_current, &vma_current->vm_file->f_mapping->i_mmap);
   	      	vma_prio_tree_foreach(vma, &iter, &vma_current->vm_file->f_mapping->i_mmap, 0, ULONG_MAX){
-  	      		trace_printk("FOUND SOME VMA %p, made it in %d\n", vma, (vma->vm_flags & VM_WRITE)  );
 				if ( (vma->vm_flags & VM_WRITE) ){
-					trace_printk(" write flags....%lu...vma is %p\n", (vma->vm_flags & VM_WRITE), vma );
 					return vma;
 				}
   	      	}
 		}
 		return NULL;
+}
+
+void print_pte_debug_info(pte_t * pte){
+	trace_printk(	"SNAP: debugging PTE: value: %lu, dirty: %d, write: %d, file: %d, %p\n", 
+					pte_val(*pte),
+					pte_dirty(*pte),
+					pte_write(*pte),
+					pte_file(*pte),
+					pte);
 }
 
 pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
@@ -179,59 +116,36 @@ pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
 	pmd_t *pmd;
 
 	pgd = pgd_offset(mm, addr);
-	
 	if (!pgd){
 		trace_printk("pgd error\n");
 		goto error;
 	}
 	pud = pud_alloc(mm, pgd, addr);
-	
 	if (!pud){
 		trace_printk("pud error\n");
 		goto error;
 	}
-	
 	pmd = pmd_alloc(mm, pud, addr);
-	
 	if (!pmd){
 		trace_printk("pmd error\n");
 		goto error;	
 	}
-	
-	//is there a pte already?
-	
-	//pte = pte_offset_map(pmd, addr);
-	
-	//trace_printk("the pmd is %p, pmd_present is %d\n", pmd, pmd_present(*pmd));
-	//return NULL;
-	
 	pte = pte_alloc_map(mm, pmd, addr);
-	
-	//return NULL;
-	
 	if (!pte){
 		trace_printk("pte error\n");
 		goto error;
 	}
-	
 	return pte;
 	
 	error:
 		trace_printk("an error occured in get_pte_entry_from_address\n");
 		return NULL;
-
 }
 
 int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma_read_only, struct mm_struct * mm){
 	struct page * page, * current_page, * page_test;	
 	unsigned long readonly_addr;
-	//trace_printk("SNAP: in each_pte_entry\n");
 	int page_mapped_result = 0;
-	
-	if (pte_val(*pte) == 0){
-		//trace_printk("nothing in the pte, just return\n");
-		return 0;	
-	}
 	pte_t * dest_pte, tmp_ro_pte, tmp_master_pte;
 	page = pte_page(*pte);
 	if (page){
@@ -239,8 +153,6 @@ int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma
 		page_mapped_result = page_mapped_in_vma(page, vma_read_only);
 		if (!page_mapped_result){
 			readonly_addr = (page->index << PAGE_SHIFT) + vma_read_only->vm_start;	//get the new address
-			trace_printk("COPY PTE: vma_read_only: %p, vma_read_only->vm_start: %08x, readonly_addr %08x, mm %p\n", 
-						vma_read_only, vma_read_only->vm_start, readonly_addr, vma_read_only->vm_mm);
 			dest_pte = get_pte_entry_from_address( vma_read_only->vm_mm, readonly_addr);
 			current_page = pte_page(*dest_pte);	//getting the page struct for the pte we just grabbed
 			if (dest_pte){
@@ -259,38 +171,10 @@ int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma
 				page->mapping = vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping;
 				set_pte(pte, tmp_master_pte);
 				pte_unmap(dest_pte);	
-				//Now we need to mark the page in the radix tree as dirty so that the 
-				//file system code will write it out to disk
-				spin_lock_irq(&(page->mapping->tree_lock));
-                SetPageDirty(page);
-                //look to see if this guy is in the radix tree
-                page_test = radix_tree_lookup(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index);
-                if (page_test != page){
-	                trace_printk("just looked up the page %p, %d at mapping %p file %p, page test is page? %d\n", 
-	                				page_test, 
-	                				page_test->index,
-	                				vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping,
-	                				vma_read_only->vm_file,
-	                				page_test == page);
-	                if (page_test){
-	                	radix_tree_delete(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page_test->index);
-						page_test->mapping = NULL;
-						vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->nrpages--;
-	                }
-	        		spin_unlock_irq(&page->mapping->tree_lock);
-	               	lock_page(page);
-	               	add_to_page_cache_locked(page, vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping, page->index, GFP_KERNEL);
-	               	radix_tree_tag_set(&vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping->page_tree, page->index, PAGECACHE_TAG_DIRTY);
-	               	unlock_page(page);
-                }
-                else{
-                	spin_unlock_irq(&page->mapping->tree_lock);	
-                }
 			}							
 		}
 	}
 	return 0;
-	
 }
 
 int each_pte_entry (pte_t * pte, unsigned long addr, unsigned long next, struct mm_walk * walker){
@@ -307,74 +191,238 @@ void walk_master_vma_page_table(struct vm_area_struct * vma, struct vm_area_stru
 	walk_page_range(vma->vm_start, vma->vm_end, &pt_walker);	//calls a function outside this module that handles this
 }
 
-void walk_page_table(struct vm_area_struct * vma){
-	struct mm_walk pt_walker;
-	memset(&pt_walker, 0, sizeof(struct mm_walk));	//need to zero it out so all of the function ptrs are NULL
-	pt_walker.pte_entry = debugging_each_pte_entry;
-	pt_walker.mm = vma->vm_mm;
-	
-	walk_page_range(vma->vm_start, vma->vm_end, &pt_walker);	//calls a function outside this module that handles this
+/*Given a element in the list (target) and the list itself, is this the latest version in the list? If so, then it is 
+the uncommitted stuff*/
+int staged_version_list(struct list_head * target, struct list_head * ls){
+	return (ls && target == ls->next);
+}
+
+/*Given a element in the list (target) and the list itself, is this the latest COMMITTED version in the list?*/
+int last_committed_version_list(struct list_head * target, struct list_head * ls){
+	return (target && ls && staged_version_list(target->next, ls) );
+}
+
+void merge_and_remove_list(struct list_head * target, struct list_head * ls){
+	struct snapshot_version_list * target_version, * next_version;
+	struct list_head * pte_list_target, * pte_list_next, * tmp_for_safe;
+	struct snapshot_pte_list * pte_entry, * pte_entry_next, * new_pte_entry; 
+	//used for seaching the lists
+	int exists;
+
+	//grab the version infront of you (if it exists)		
+	struct list_head * next_list = target->prev;
+	trace_printk("\n\n\n\nin merge\n");
+	if (!staged_version_list(next_list, ls)){
+		//get the pte list for this guy
+		target_version = list_entry( target, struct snapshot_version_list, list);
+		next_version = list_entry( next_list, struct snapshot_version_list, list);
+		if (target_version->pte_list && next_version->pte_list){
+			//traverse the pte list...
+			list_for_each_safe(pte_list_target, tmp_for_safe, &target_version->pte_list->list){
+				exists=0;
+				pte_entry = list_entry( pte_list_target, struct snapshot_pte_list, list);
+				//look for this addr in the next list
+				list_for_each(pte_list_next, &next_version->pte_list->list){
+					pte_entry_next = list_entry( pte_list_next, struct snapshot_pte_list, list);
+					//TODO: fix this for HUGE PAGES
+					if ((pte_entry->addr & PAGE_MASK) == (pte_entry_next->addr & PAGE_MASK)){
+						exists=1;
+						trace_printk("it already exists\n");	
+						break;
+					}
+				}
+				if (!exists){
+					//trace_printk("adding it\n");
+					
+					//trace_printk("deleting %08lx and pte %p pte_val %lu\n", pte_entry->addr, pte_entry->pte, pte_val(*pte_entry->pte));
+					//trace_printk("We are deleting this from list %p and the entry is %p and the list element is %p\n",  
+					//				&target_version->pte_list->list, pte_entry,pte_list_target);
+					list_del(pte_list_target);
+					/*something is up here*/
+					//INIT_LIST_HEAD(pte_list_target);
+					list_add(pte_list_target, &next_version->pte_list->list);
+				}
+			}
+			//now remove our list
+			list_del(target);
+		}
+	}
 }
 
 int get_snapshot (struct vm_area_struct * vma){
 	struct vm_area_struct * master_vma;
 	/*for iterating through the list*/
-	struct list_head * pos, * pos_outer;
+	struct list_head * pos, * pos_outer, * ls, * tmp, * new_list;
 	/*for storing pte values from list*/
 	struct snapshot_pte_list * tmp_pte_list;
-	struct snapshot_version_list * latest_version_entry, * new_version_entry;
+	struct snapshot_version_list * latest_version_entry, * new_version_entry, * tmp_version_entry;
+	int set_new_list = 0;
 	
-	trace_printk("SNAP: get_snapshot \n");
+	trace_printk("\n\n\n\nSNAP: get_snapshot \n");
 	if (vma && vma->vm_mm && vma->vm_file){
 		master_vma = get_master_vma(vma->vm_file, vma);
 		trace_printk("file is %p, the vma mapping is %p, vma is %p\n", vma->vm_file, vma->vm_file->f_mapping->i_mmap, vma);
 		if (master_vma){
 			if (master_vma->snapshot_pte_list){
+				//get the latest version list
 				struct snapshot_version_list * version_list = (struct snapshot_version_list *)master_vma->snapshot_pte_list;
-				//get latest version list
-				if (version_list && version_list->list.prev){
-					//we need traverse the list of version lists
-					list_for_each_prev(pos_outer, &version_list->list){
+				//only go in here if there is more than one element in the list (prev != next)
+				if (version_list && version_list->list.prev != version_list->list.next){
+					//if the subscriber's vma has a previous ptr into the list, use that. If not, just use the entire list
+					if (vma->snapshot_pte_list){
+						ls = (struct list_head *)vma->snapshot_pte_list;
+						//if we are already the latest committed version, no reason to go through all of this
+						if (last_committed_version_list(ls,&version_list->list)){
+							return 1;
+						}
+					}
+					else{
+						//no previous ptr to list, just use the whole thing
+						ls = &version_list->list;
+					}
+					
+					list_for_each_prev(pos_outer, ls){
+						if (staged_version_list(pos_outer,&version_list->list)){
+							break;
+						}
 						latest_version_entry = list_entry( pos_outer, struct snapshot_version_list, list);
 						if (latest_version_entry && latest_version_entry->pte_list){
+							//now traverse the pte list to see what has changed.
 							list_for_each(pos, &latest_version_entry->pte_list->list){
+								//get the pte entry
 								tmp_pte_list = list_entry(pos, struct snapshot_pte_list, list);
 								if (tmp_pte_list){
-									trace_printk("traversing the pte list: %lu, %p %p, %08x\n", pte_val(*tmp_pte_list->pte), tmp_pte_list, tmp_pte_list->pte, tmp_pte_list->addr);
+									trace_printk("\ntraversing the pte list: %lu, %p %p, %08x\n", 
+													pte_val(*tmp_pte_list->pte), tmp_pte_list, 
+													tmp_pte_list->pte, tmp_pte_list->addr);
+									trace_printk("the entry is %p, the list is %p and the entry's list is %p\n", 
+													tmp_pte_list, &latest_version_entry->pte_list->list, pos);
+									//now actually perform the copy
 									copy_pte_entry (tmp_pte_list->pte, tmp_pte_list->addr, vma, master_vma->vm_mm);
 								}
 							}
+							new_list = pos_outer;
 						}
 					}
-					/*we need to add a new version list now*/
-					new_version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
-					INIT_LIST_HEAD(&new_version_entry->list);
-					new_version_entry->pte_list = NULL;
-					/*add the entry to the list*/
-					list_add(&new_version_entry->list, &version_list->list);
+					trace_printk("huh? %p, %d, %p\n", vma->snapshot_pte_list, new_list != vma->snapshot_pte_list, new_list);
+					//deal with older list that we are no longer using
+					if (vma->snapshot_pte_list && new_list != vma->snapshot_pte_list){
+						//get the old list entry
+						tmp_version_entry = list_entry( (struct list_head *)vma->snapshot_pte_list, struct snapshot_version_list, list);
+						trace_printk("the ref count is %d\n", tmp_version_entry->ref_count);
+						if (tmp_version_entry->ref_count == 1){
+							//we are able to merge this one
+							merge_and_remove_list(vma->snapshot_pte_list, &version_list->list);
+						}
+					}
+					vma->snapshot_pte_list = new_list;
+					latest_version_entry->ref_count +=1;
 				}
 			}
 		}
 	}
-	
 	return 0;
 }
 
-void myDebugFunction (struct vm_area_struct * vma, struct mm_struct * mm, struct file * f,  const unsigned long address){
-
-	trace_printk("my debug function got hit!!!!\n");
-	trace_printk("the file is %p, the vma is %p\n", f, vma);
+/*This is the main commit function for owners. We need to traverse the list and make the
+modified pages COW. Here we also update the page cache*/
+void snapshot_commit(struct vm_area_struct * vma){
+	
+	struct list_head * pos;
+	struct snapshot_version_list * latest_version_entry, * new_version_entry;
+	struct snapshot_pte_list * pte_entry;
+	pte_t tmp_master_pte, * debug_pte;
+	struct page * page;
+	struct page * page_test;
+	struct address_space * mapping;
+	struct radix_tree_root *root;
+	
+	if (vma && vma->snapshot_pte_list){
+		
+		trace_printk("IN COMMIT \n");
+		struct snapshot_version_list * version_list = (struct snapshot_version_list *)vma->snapshot_pte_list;
+		if (version_list && version_list->list.prev){
+			//get the latest list of modifications that haven't been committed (at the head of the list)
+			latest_version_entry = list_entry(version_list->list.next, struct snapshot_version_list, list);
+			//now, traverse the list
+			trace_printk("IN COMMIT, before the list \n");
+			if (latest_version_entry && latest_version_entry->pte_list){
+				trace_printk("IN COMMIT, do we have a list? \n");
+				list_for_each(pos, &latest_version_entry->pte_list->list){
+					pte_entry = list_entry(pos, struct snapshot_pte_list, list);
+					print_pte_debug_info(pte_entry->pte);
+					//lets get that page struct that is pointed to by this pte...
+					page = pte_page(*(pte_entry->pte));
+					//get the pre-existing pte value and clear the pte pointer
+					tmp_master_pte = ptep_get_and_clear(vma->vm_mm, pte_entry->addr, pte_entry->pte);
+					//we need to write protect the owner's pte again
+					tmp_master_pte = pte_wrprotect(tmp_master_pte);	
+					//set it back
+					set_pte(pte_entry->pte, tmp_master_pte);
+					//TODO: TLB flush here?!
+					//now lets deal with the page cache, we need to add this page to the page cache if its not in there.
+					//first we get the address_space
+					mapping = vma->vm_file->f_mapping;
+					//spin_lock_irq(&(mapping->tree_lock));
+                	//setting the page dirty will ensure that this gets written back to disk
+                	SetPageDirty(page);
+					//lets see what's in the page cache for this page's index...
+					page_test = radix_tree_lookup(&mapping->page_tree, page->index);
+					trace_printk("%p %d %p\n", page, (((int )page_test) >> 24), page_test);
+					if (page_test != page){	//TODO: Compiler bug here? Why do I have to do this?
+		                if (page_test){
+		                	//go ahead and delete from the page cache
+		                	radix_tree_delete(&mapping->page_tree, page_test->index);
+		                	//trace_printk("HUH? %p mapping, %p page tree, %d\n", mapping, mapping->page_tree, page_test);
+		                	trace_printk("DID I REALLY GET IN HERE? %d\n", page_test->index );
+		                	//this page is no longer associated with the mapping, not SURE if this is needed
+							//page_test->mapping = NULL;
+		                }
+						//spin_unlock_irq(&(mapping->tree_lock));
+		               	lock_page(page);
+		               	//add it the new page to the page cache
+		               	trace_printk("add it the new page to the page cache, %p, %p, %d, %p %p \n", 
+		               					page, mapping, page->index, page_test,&mapping->page_tree);
+		               	//this may be locked, so we need to unlock it before we go in here
+		               	//if (spin_is_locked(&(mapping->tree_lock))){
+		               	//	spin_unlock_irq(&(mapping->tree_lock));		//TODO: need a long term fix for this
+		               	//}
+		               	//add_to_page_cache_locked(page, mapping,page->index, GFP_KERNEL);
+		               	//trace_printk("PAGE TREE %p\n", mapping);
+		                radix_tree_insert(&mapping->page_tree, page->index, page);
+		                page_cache_get(page);
+						page->mapping = mapping;
+		               	//set the radix tree tag that indicates that the page needs to be written back to disk
+		               	radix_tree_tag_set(	&mapping->page_tree,page->index, PAGECACHE_TAG_DIRTY);
+		               	//trace_printk("SETTING THE PAGECACHE_TAG_DIRTY? \n");
+		               	unlock_page(page);
+					}
+				}
+			}
+			/*we need to add a new version list now*/
+			new_version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
+			INIT_LIST_HEAD(&new_version_entry->list);
+			new_version_entry->pte_list = NULL;
+			new_version_entry->ref_count = 0;
+			trace_printk("latest entry is %p\n", new_version_entry);
+			/*add the entry to the list*/
+			list_add(&new_version_entry->list, &version_list->list);
+		}
+	}
 }
 
-void unmapDebugFunction (struct vm_area_struct * vma, struct mm_struct * mm){
-	
-	pgd_t * pgd;
-	
-	/*walk through the page tables*/
-	trace_printk("SNAP: in unmapDebug Function");
-	//debugging_pte ( vma );
-	pgd = pgd_offset(mm, vma->vm_start);
-	trace_printk("SNAP: pgd val: %lu\n", pgd_val(*pgd));
+/*This function's purpose is to be an entry point into our snapshot code from the
+msync system call. If it's a subscriber, then we grab a snapshot. If it's an owner,
+then we need to commit changes*/
+void snapshot_msync(struct vm_area_struct * vma){
+	if (is_snapshot_read_only(vma)){
+		//the purpose of this call was to grab a new snapshot	
+		get_snapshot(vma);
+	}
+	else{
+		//the purpose of this call was to commit something
+		snapshot_commit(vma);	
+	}
 }
 
 struct snapshot_version_list * _snapshot_create_version_list(){
@@ -384,6 +432,7 @@ struct snapshot_version_list * _snapshot_create_version_list(){
 	struct snapshot_version_list * version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
 	INIT_LIST_HEAD(&version_entry->list);
 	version_entry->pte_list = NULL;
+	version_entry->ref_count = 0;
 	/*add the entry to the list*/
 	list_add(&version_entry->list, &version_list->list);
 	return version_list;
@@ -417,8 +466,9 @@ int do_snapshot_add_pte (struct vm_area_struct * vma, pte_t * orig_pte, pte_t * 
 	}
 	/*get version list from vma*/
 	struct snapshot_version_list * version_list = vma->snapshot_pte_list;
-	/*get the latest version list, AKA the tail of the list*/
-	struct snapshot_version_list * latest_version_entry = list_entry( version_list->list.prev, struct snapshot_version_list, list);
+	/*get the latest version list, AKA the head of the list*/
+	struct snapshot_version_list * latest_version_entry = 
+		list_entry( version_list->list.next, struct snapshot_version_list, list);
 	
 	/*if we are the first page fault, we have to create the pte list*/
 	trace_printk("SNAP: version_list->list.prev %p %p\n", version_list->list.prev,  version_list);
@@ -460,6 +510,21 @@ int do_snapshot_add_pte (struct vm_area_struct * vma, pte_t * orig_pte, pte_t * 
 	}
 }
 
+void myDebugFunction (struct vm_area_struct * vma, struct mm_struct * mm, struct file * f,  const unsigned long address){
+
+	struct address_space * mapping;
+	struct radix_tree_root *root;
+	struct page * page_test;
+	
+	if (f && f->f_mapping){
+		mapping = f->f_mapping;
+		root = &mapping->page_tree;
+		trace_printk("tree root height...%d\n", root->height);
+		page_test = radix_tree_lookup(&mapping->page_tree, 0);
+		trace_printk("%p\n", page_test);
+	}
+}
+
 int init_module(void)
 {
 	printk(KERN_INFO "Hello world 1.\n");
@@ -470,7 +535,7 @@ int init_module(void)
 	mmap_snapshot_instance.is_snapshot = is_snapshot;
 	mmap_snapshot_instance.is_snapshot_read_only = is_snapshot_read_only;
 	mmap_snapshot_instance.is_snapshot_master = is_snapshot_master;
-	mmap_snapshot_instance.get_snapshot = get_snapshot;
+	mmap_snapshot_instance.get_snapshot = snapshot_msync;			//TODO: this function name in the struct should change
 	mmap_snapshot_instance.init_snapshot = init_snapshot;
 	mmap_snapshot_instance.do_snapshot_add_pte = do_snapshot_add_pte;
 	

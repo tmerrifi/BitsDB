@@ -1,5 +1,5 @@
-scp `echo "tmerri4@"$1":~/debugging_mm_module/snapshot.c ."`;
-scp `echo "tmerri4@"$1":~/debugging_mm_module/Makefile ."`;
-scp `echo "tmerri4@"$1":~/debugging_mm_module/install.sh ."`;
-scp `echo "tmerri4@"$1":~/debugging_mm_module/remove.sh ."`;
+scp `echo "tmerrifi@"$1":~/snapshots/snap_module/snapshot.c ."`;
+scp `echo "tmerrifi@"$1":~/snapshots/snap_module/Makefile ."`;
+scp `echo "tmerrifi@"$1":~/snapshots/snap_module/install.sh ."`;
+scp `echo "tmerrifi@"$1":~/snapshots/snap_module/remove.sh ."`;
 

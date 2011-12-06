@@ -15,11 +15,38 @@
 
 MODULE_LICENSE("GPL");
 
-#define SNAPSHOT_PREFIX "snapshot_"
-
+#define SNAPSHOT_PREFIX "snapshot"
 #define SNAPSHOT_DEBUG Y
 
+/*Policies specified by the subscribers*/
+#define COMMIT_ALWAYS	0x100000
+#define COMMIT_ADAPT	0x200000
+#define COMMIT_DYN		0x400000
+#define COMMIT_INTERVAL_SHIFT 23	
+
+/*flag for snapshots*/
+#define SNAP_BLOCKING		0x10
+#define SNAP_NONBLOCKING	0x20
+
+/*Used for doing the exponentially weighted moving average*/
+#define ADAPT_EWMA_COEFF		20
+#define ADAPT_EWMA_FACTOR		100		
+#define ADAPT_EWMA_DEFAULT_US 	1000
+/*How old is too old for a snapshot when using adapt?*/
+#define ADAPT_AGE_FACTOR		3
+
 struct snapshot_version_list * _snapshot_create_version_list();
+
+/*TODO: Put this in the header file*/
+
+//struct rw_semaphore rwsem_snapversionlist;
+static DEFINE_SEMAPHORE(rwsem_snapversionlist);
+
+//for debugging only
+int snapshot_pf_count=0;
+int page_counter=0;
+unsigned long total_commit_time=0;
+unsigned long total_commits=0;
 
 /*a structure that defines a node in the pte list. Each version of the snapshot memory keeps a list
 of pte values that have changed. A subscriber traverses the pte_list for each version that has changed
@@ -34,8 +61,13 @@ struct snapshot_pte_list{
 snapshot*/
 struct snapshot_version_list{
 	struct list_head list;
-	int ref_count;
 	struct snapshot_pte_list * pte_list;
+};
+
+/*this structure keeps track of commit priorities, when should an owner commit?*/
+struct commit_prio_list{
+	struct list_head list;
+	unsigned long microseconds;
 };
 
 int is_snapshot (struct vm_area_struct * vma, struct mm_struct * mm, struct file * f){
@@ -53,16 +85,8 @@ int is_snapshot (struct vm_area_struct * vma, struct mm_struct * mm, struct file
 }
 
 int is_snapshot_read_only (struct vm_area_struct * vma){ 
-	int result = 0;
-	struct page * page_test;
 	
 	if (vma && vma->vm_file && vma->vm_file->f_path.dentry){
-		#ifdef SNAPSHOT_DEBUG
-		trace_printk(	"SNAP: is_snapshot_read_only: file %p : write %d : vma is %p\n", 
-						vma->vm_file,
-						!(vma->vm_flags & VM_WRITE),
-						vma );
-		#endif
 		return ( vma->vm_file && is_snapshot(NULL, NULL, vma->vm_file) && !(vma->vm_flags & VM_WRITE) );
 	}
 	else{
@@ -79,6 +103,20 @@ int is_snapshot_master (struct vm_area_struct * vma){
 					vma );
 	#endif
 	return ( vma->vm_file && is_snapshot(NULL, NULL, vma->vm_file) && vma->vm_flags & VM_WRITE );		
+}
+
+unsigned long elapsed_time_in_microseconds(struct timeval * old_tv, struct timeval * current_tv){
+
+	unsigned long secs;
+	//get current time
+	do_gettimeofday(current_tv);
+	secs = current_tv->tv_sec - old_tv->tv_sec;
+	trace_printk("current secs %lu, usecs %lu, old secs %lu, usecs %lu\n", current_tv->tv_sec, current_tv->tv_usec, old_tv->tv_sec, old_tv->tv_usec);
+	if (secs){
+		return ((secs * 1000000) - old_tv->tv_usec) + current_tv->tv_usec;
+	}
+	else
+		return current_tv->tv_usec - old_tv->tv_usec;
 }
 
 struct vm_area_struct * get_master_vma (struct file * vm_file, struct vm_area_struct * vma_current){
@@ -143,35 +181,78 @@ pte_t * get_pte_entry_from_address(struct mm_struct * mm, unsigned long addr){
 }
 
 int copy_pte_entry (pte_t * pte, unsigned long addr, struct vm_area_struct * vma_read_only, struct mm_struct * mm){
-	struct page * page, * current_page, * page_test;	
+	struct page * page, * old_page;	
 	unsigned long readonly_addr;
 	int page_mapped_result = 0;
-	pte_t * dest_pte, tmp_ro_pte, tmp_master_pte;
+	pte_t * dest_pte;
+	pte_t tmp_ro_pte, tmp_master_pte;
+	
 	page = pte_page(*pte);
 	if (page){
 		//is this page mapped into our address space?
-		page_mapped_result = page_mapped_in_vma(page, vma_read_only);
+		page_mapped_result = page_mapped_in_vma(page, vma_read_only);	//TODO: is this necessary?
 		if (!page_mapped_result){
+			lock_page(page);
 			readonly_addr = (page->index << PAGE_SHIFT) + vma_read_only->vm_start;	//get the new address
 			dest_pte = get_pte_entry_from_address( vma_read_only->vm_mm, readonly_addr);
-			current_page = pte_page(*dest_pte);	//getting the page struct for the pte we just grabbed
-			if (dest_pte){
+			old_page = pte_page(*dest_pte);	//getting the page struct for the pte we just grabbed
+			if (dest_pte && old_page){
+				//do this only if the old page is actually mapped into our address space
+				if (page_mapped_in_vma(old_page, vma_read_only)){		
+					lock_page(old_page);
+					//remove from the rmap
+					page_remove_rmap(old_page);
+					old_page->mapping=NULL;			//TODO: perhaps paranoia?
+					/*trace_printk("MAPCOUNT in copy: address %08lx, PTE VAL %lu, and count is %d and ref count is %d\n", 
+							addr, pte_val(*dest_pte), page_mapcount(old_page), page_count(old_page));*/
+					unlock_page(old_page);
+					//decrement the ref count of the old page
+					//printk(KERN_ALERT " before put_page in copy pte\n");
+					//dump_page(old_page);
+					if (atomic_read(&old_page->_count) == 2){
+						page_counter--;
+						//trace_printk("PAGE-COUNTER: %d GET-SUB %p %d\n", page_counter, old_page, atomic_read(&old_page->_count));
+					}
+					put_page(old_page);	
+				}
+				else{
+					//printk(KERN_ALERT "in copy...old page wasn't mapped in\n");	
+				}
+				
 				//increment the ref count for this page
-				get_page(page);												
+				get_page(page);	
+				//add the page to the rmap
+				if (PageAnon(page)){
+					//printk("the page is anonymous\n");
+					page_add_anon_rmap(page, vma_read_only, addr);
+				}							
+				else{
+					page_add_file_rmap(page);
+				}
+				//trace_printk("MAPCOUNT in copy: address %08lx, PTE VAL %lu, and count is %d and ref count is %d\n", 
+				//addr, pte_val(*pte), page_mapcount(page), page_count(page));
 				//create the new pte given a physical page (frame)
 				tmp_ro_pte = mk_pte(page, vma_read_only->vm_page_prot);
 				//clear the accessed bit
 				pte_mkold(tmp_ro_pte);
+				//flush the tlb for this page
+				__flush_tlb_one(addr);
+				//flush_tlb_page(vma_read_only, addr); 
+				
 				//now set the new pte
 				set_pte(dest_pte, tmp_ro_pte);
-				tmp_master_pte = ptep_get_and_clear(mm, addr, pte);
+				//tmp_master_pte = ptep_get_and_clear(mm, addr, pte);
 				//we need to write protect the owner's pte again
-				tmp_master_pte = pte_wrprotect(tmp_master_pte);	
+				//tmp_master_pte = pte_wrprotect(tmp_master_pte);	
 				//set the mapping back so it's no longer anonymous
-				page->mapping = vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping;
-				set_pte(pte, tmp_master_pte);
+				page->mapping = vma_read_only->vm_file->f_path.dentry->d_inode->i_mapping;	//TODO: replace this with the "better" path
+				//set_pte(pte, tmp_master_pte);
 				pte_unmap(dest_pte);	
-			}							
+				//page_counter++;
+				//trace_printk("PAGE-COUNTER: %d GET-ADD: %p : %d\n", page_counter, page, atomic_read(&page->_count));
+				
+			}
+			unlock_page(page);						
 		}
 	}
 	return 0;
@@ -199,70 +280,113 @@ int staged_version_list(struct list_head * target, struct list_head * ls){
 
 /*Given a element in the list (target) and the list itself, is this the latest COMMITTED version in the list?*/
 int last_committed_version_list(struct list_head * target, struct list_head * ls){
-	return (target && ls && staged_version_list(target->next, ls) );
+	return (target && ls && staged_version_list(target->prev, ls) );
 }
 
-void merge_and_remove_list(struct list_head * target, struct list_head * ls){
-	struct snapshot_version_list * target_version, * next_version;
-	struct list_head * pte_list_target, * pte_list_next, * tmp_for_safe;
-	struct snapshot_pte_list * pte_entry, * pte_entry_next, * new_pte_entry; 
-	//used for seaching the lists
-	int exists;
 
-	//grab the version infront of you (if it exists)		
-	struct list_head * next_list = target->prev;
-	trace_printk("\n\n\n\nin merge\n");
-	if (!staged_version_list(next_list, ls)){
-		//get the pte list for this guy
-		target_version = list_entry( target, struct snapshot_version_list, list);
-		next_version = list_entry( next_list, struct snapshot_version_list, list);
-		if (target_version->pte_list && next_version->pte_list){
-			//traverse the pte list...
-			list_for_each_safe(pte_list_target, tmp_for_safe, &target_version->pte_list->list){
-				exists=0;
-				pte_entry = list_entry( pte_list_target, struct snapshot_pte_list, list);
-				//look for this addr in the next list
-				list_for_each(pte_list_next, &next_version->pte_list->list){
-					pte_entry_next = list_entry( pte_list_next, struct snapshot_pte_list, list);
-					//TODO: fix this for HUGE PAGES
-					if ((pte_entry->addr & PAGE_MASK) == (pte_entry_next->addr & PAGE_MASK)){
-						exists=1;
-						trace_printk("it already exists\n");	
-						break;
-					}
-				}
-				if (!exists){
-					//trace_printk("adding it\n");
-					
-					//trace_printk("deleting %08lx and pte %p pte_val %lu\n", pte_entry->addr, pte_entry->pte, pte_val(*pte_entry->pte));
-					//trace_printk("We are deleting this from list %p and the entry is %p and the list element is %p\n",  
-					//				&target_version->pte_list->list, pte_entry,pte_list_target);
-					list_del(pte_list_target);
-					/*something is up here*/
-					//INIT_LIST_HEAD(pte_list_target);
-					list_add(pte_list_target, &next_version->pte_list->list);
-				}
-			}
-			//now remove our list
-			list_del(target);
+/*should we actually do the snapshot? This function is only important if this is a blocking request*/
+int do_snapshot (struct vm_area_struct * master_vma, struct vm_area_struct * subscriber_vma){
+	
+	unsigned long elapsed_microseconds;
+	struct timeval tmp_tv;
+	
+	if (atomic_read(&subscriber_vma->always_ref_count)){
+		trace_printk("do_commit: with ALWAYS or nonblocking\n");
+		/*OK, we want to get a snapshot no matter what*/
+		return 1;	
+	}	
+	
+	/*if it's the first snapshot, go ahead and do it*/
+	if (!subscriber_vma->snapshot_pte_list){
+		trace_printk("its the first one\n");
+		return 1;
+	}
+		
+	/*if it's COMMIT_ADAPT or COMMIT_DYN we need to look at the time*/
+	elapsed_microseconds = elapsed_time_in_microseconds(&master_vma->last_commit_time, &tmp_tv);
+	/*Is it dynamic????*/
+	if (subscriber_vma->ewma_adapt){
+		trace_printk("it's dynamic, %lu, elapsed time %lu\n", subscriber_vma->ewma_adapt, elapsed_microseconds);
+		/*is the last commit too old?*/
+		if (elapsed_microseconds >= subscriber_vma->ewma_adapt){
+			return 0;	
 		}
+	}	
+	/*Is it adapt*/
+	else if (atomic_read(&subscriber_vma->adapt_ref_count)){
+		trace_printk("it's adapt, %lu, elapsed time %lu\n", master_vma->ewma_adapt, elapsed_microseconds);
+		if (elapsed_microseconds >= master_vma->ewma_adapt * ADAPT_AGE_FACTOR){
+			return 0;	
+		}
+	}
+	
+	return 1;
+}
+
+void wait_for_commit(struct vm_area_struct * master_vma, struct vm_area_struct * subscriber_vma){
+	int revision_number = atomic_read(&master_vma->revision_number);
+	trace_printk("In wait_for_commit\n");
+	if (!do_snapshot(master_vma, subscriber_vma)){
+		/*OK, we are blocking and waiting until we get a new commit*/
+		DECLARE_WAITQUEUE(wait, current);
+		add_wait_queue(&master_vma->snapshot_wq, &wait);
+		/*Keep going around in this loop until someone (the owner) commits*/
+		trace_printk("the revision # is %d\n", revision_number);
+		while(atomic_read(&master_vma->revision_number) == revision_number){
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			trace_printk("got woken up, %d, %d\n", revision_number, atomic_read(&master_vma->revision_number));
+		}
+		set_current_state(TASK_RUNNING);
+		remove_wait_queue(&master_vma->snapshot_wq, &wait);
 	}
 }
 
-int get_snapshot (struct vm_area_struct * vma){
+void update_master_adapt_ewma (struct vm_area_struct * master_vma){
+
+	unsigned long elapsed_time;
+	struct timeval tmp_tv;
+	
+	if (master_vma->last_snapshot_time.tv_sec == 0){
+		do_gettimeofday(&master_vma->last_snapshot_time);		
+		return;
+	}
+	
+	elapsed_time = elapsed_time_in_microseconds(&master_vma->last_snapshot_time, &tmp_tv);
+	trace_printk("IN update_master_adapt_ewma: elapsed time is %lu, ewma_adapt is %lu\n", elapsed_time, master_vma->ewma_adapt);
+	memcpy(&master_vma->last_snapshot_time, &tmp_tv, sizeof(struct timeval));
+	/*update the ewma*/
+	master_vma->ewma_adapt =  	(	(ADAPT_EWMA_COEFF * elapsed_time) + 
+									((ADAPT_EWMA_FACTOR - ADAPT_EWMA_COEFF) * master_vma->ewma_adapt)
+								)/ADAPT_EWMA_FACTOR;
+	
+	trace_printk("new ewma_adapt is %lu\n", master_vma->ewma_adapt);
+}
+
+int get_snapshot (struct vm_area_struct * vma, unsigned long flags){
 	struct vm_area_struct * master_vma;
 	/*for iterating through the list*/
-	struct list_head * pos, * pos_outer, * ls, * tmp, * new_list;
+	struct list_head * pos, * pos_outer, * pos_outer_tmp, * ls, * new_list;
 	/*for storing pte values from list*/
 	struct snapshot_pte_list * tmp_pte_list;
-	struct snapshot_version_list * latest_version_entry, * new_version_entry, * tmp_version_entry;
-	int set_new_list = 0;
+	struct snapshot_version_list * latest_version_entry;
 	
-	trace_printk("\n\n\n\nSNAP: get_snapshot \n");
+	
+	//trace_printk("SNAP: get_snapshot, blocking? %lu, non-blocking %lu, %lu \n", flags & SNAP_BLOCKING, flags & SNAP_NONBLOCKING, flags);
+	trace_printk("PAGE-COUNTER: %d\n", page_counter);
+	
 	if (vma && vma->vm_mm && vma->vm_file){
 		master_vma = get_master_vma(vma->vm_file, vma);
-		trace_printk("file is %p, the vma mapping is %p, vma is %p\n", vma->vm_file, vma->vm_file->f_mapping->i_mmap, vma);
 		if (master_vma){
+			/*update the adapt EWMA*/
+			update_master_adapt_ewma(master_vma);
+			/*should we actually grab the snapshot?*/
+			if (flags & SNAP_BLOCKING){
+				wait_for_commit(master_vma, vma);
+			}
+			//trace_printk("OK, we are going to do this thing!\n");
+			//grab the lock
+			down(&rwsem_snapversionlist);
 			if (master_vma->snapshot_pte_list){
 				//get the latest version list
 				struct snapshot_version_list * version_list = (struct snapshot_version_list *)master_vma->snapshot_pte_list;
@@ -271,52 +395,128 @@ int get_snapshot (struct vm_area_struct * vma){
 					//if the subscriber's vma has a previous ptr into the list, use that. If not, just use the entire list
 					if (vma->snapshot_pte_list){
 						ls = (struct list_head *)vma->snapshot_pte_list;
+						//trace_printk("using the old list!\n");
 						//if we are already the latest committed version, no reason to go through all of this
 						if (last_committed_version_list(ls,&version_list->list)){
+							//trace_printk("we are the latest committed version!\n");
+							up(&rwsem_snapversionlist);
+							trace_printk("PAGE-COUNTER: %d\n", page_counter);
 							return 1;
 						}
 					}
 					else{
 						//no previous ptr to list, just use the whole thing
+						//trace_printk("using the whole thing!\n");
 						ls = &version_list->list;
 					}
-					
-					list_for_each_prev(pos_outer, ls){
+					list_for_each_prev_safe(pos_outer, pos_outer_tmp, ls){
 						if (staged_version_list(pos_outer,&version_list->list)){
+							//trace_printk("got the staged version\n");
 							break;
 						}
+						
 						latest_version_entry = list_entry( pos_outer, struct snapshot_version_list, list);
+						//trace_printk("got latest version entry 2 %p %p\n", latest_version_entry, latest_version_entry->pte_list);
 						if (latest_version_entry && latest_version_entry->pte_list){
+							//trace_printk("HHUH???\n");
 							//now traverse the pte list to see what has changed.
-							list_for_each(pos, &latest_version_entry->pte_list->list){
-								//get the pte entry
-								tmp_pte_list = list_entry(pos, struct snapshot_pte_list, list);
-								if (tmp_pte_list){
-									trace_printk("\ntraversing the pte list: %lu, %p %p, %08x\n", 
-													pte_val(*tmp_pte_list->pte), tmp_pte_list, 
-													tmp_pte_list->pte, tmp_pte_list->addr);
-									trace_printk("the entry is %p, the list is %p and the entry's list is %p\n", 
-													tmp_pte_list, &latest_version_entry->pte_list->list, pos);
-									//now actually perform the copy
-									copy_pte_entry (tmp_pte_list->pte, tmp_pte_list->addr, vma, master_vma->vm_mm);
-								}
+							if ( list_empty(&latest_version_entry->pte_list->list)){
+								//trace_printk("deleted a list\n");
+								//list_del(pos_outer);
 							}
-							new_list = pos_outer;
-						}
-					}
-					trace_printk("huh? %p, %d, %p\n", vma->snapshot_pte_list, new_list != vma->snapshot_pte_list, new_list);
-					//deal with older list that we are no longer using
-					if (vma->snapshot_pte_list && new_list != vma->snapshot_pte_list){
-						//get the old list entry
-						tmp_version_entry = list_entry( (struct list_head *)vma->snapshot_pte_list, struct snapshot_version_list, list);
-						trace_printk("the ref count is %d\n", tmp_version_entry->ref_count);
-						if (tmp_version_entry->ref_count == 1){
-							//we are able to merge this one
-							merge_and_remove_list(vma->snapshot_pte_list, &version_list->list);
+							else{
+								//trace_printk("HERE???\n");
+								list_for_each(pos, &latest_version_entry->pte_list->list){
+									//get the pte entry
+									//trace_printk("HERE 2???\n");
+									tmp_pte_list = list_entry(pos, struct snapshot_pte_list, list);
+									if (tmp_pte_list){
+										//trace_printk("HERE 3???\n");
+										//now actually perform the copy
+										//trace_printk("actually calling copy_pte_entry\n");
+										copy_pte_entry (tmp_pte_list->pte, tmp_pte_list->addr, vma, master_vma->vm_mm);
+									}
+								}
+								new_list = pos_outer;
+							}
 						}
 					}
 					vma->snapshot_pte_list = new_list;
-					latest_version_entry->ref_count +=1;
+				}
+			}
+			//release the semaphore
+			up(&rwsem_snapversionlist);
+		}
+	}
+	
+	trace_printk("PAGE-COUNTER: %d\n", page_counter);
+	
+	return 0;
+}
+
+void delete_old_pte(struct radix_tree_root * snapshot_page_tree, unsigned long index){
+	
+	struct snapshot_pte_list * pte_entry; 
+	struct list_head * pte_entry_ls;
+	
+	//try and delete from the pte radix tree
+	if ((pte_entry_ls = radix_tree_delete(snapshot_page_tree, index))){
+		//for debugging, who was this. TODO: get rid of this
+		pte_entry = list_entry(pte_entry_ls, struct snapshot_pte_list, list);
+		trace_printk("delete_pte_from_list: the address was...%08lx\n", pte_entry->addr);
+		//there was something in there...now delete that list entry
+		list_del(pte_entry_ls);
+		kfree(pte_entry);
+	}
+}
+
+/*Should we perform the commit or not depending on the behavior specified by the subscribers*/
+int do_commit(struct vm_area_struct * vma){
+	struct list_head * pos;
+	struct commit_prio_list * commit_interval;
+	unsigned long elapsed_microseconds;
+	struct timeval tmp_tv;
+	
+	trace_printk("in do_commit\n");
+	/*if nothing is setup, then commit (TODO: This is only for testing...should be removed)*/
+	if (atomic_read(&vma->always_ref_count) == 0 && atomic_read(&vma->adapt_ref_count) == 0 
+		&& list_empty(&vma->prio_list)){
+		trace_printk("do_commit: nothing setup yet by subscribers, just commit\n");
+		return 1;		
+	}
+	
+	if (atomic_read(&vma->always_ref_count)){
+		trace_printk("do_commit: with ALWAYS\n");
+		/*OK, we always want to commit no matter what*/
+		return 1;	
+	}	
+	/*if it's the first one, go ahead and do it*/
+	else if (vma->last_commit_time.tv_sec == 0){
+		trace_printk("its the first one\n");
+		return 1;
+	}
+	else{
+		
+		elapsed_microseconds = elapsed_time_in_microseconds(&vma->last_commit_time, &tmp_tv);
+		
+		trace_printk("elapsed microseconds...%lu\n", elapsed_microseconds);
+		if (atomic_read(&vma->adapt_ref_count)){
+			trace_printk("do_commit: with ADAPT\n");
+			/*OK, we need to use the adaptive approach (how often are we getting requests from subscribers?*/
+			return 1;
+		}
+		else{
+			trace_printk("do_commit: trying dynamic\n");
+			list_for_each(pos, &vma->prio_list){
+				commit_interval = list_entry(pos, struct commit_prio_list, list);
+				trace_printk("the interval is %lu and elapsed time is %lu, %p %p\n", 
+				commit_interval->microseconds, elapsed_microseconds, commit_interval, &vma->prio_list);
+				if (commit_interval && elapsed_microseconds > commit_interval->microseconds){
+					trace_printk("the interval is %lu and elapsed time is %lu\n", commit_interval->microseconds, elapsed_microseconds);
+					return 1;
+				}
+				else{
+					trace_printk("the interval is %lu and elapsed time is %lu\n", commit_interval->microseconds, elapsed_microseconds);
 				}
 			}
 		}
@@ -324,42 +524,53 @@ int get_snapshot (struct vm_area_struct * vma){
 	return 0;
 }
 
+
 /*This is the main commit function for owners. We need to traverse the list and make the
 modified pages COW. Here we also update the page cache*/
 void snapshot_commit(struct vm_area_struct * vma){
 	
 	struct list_head * pos;
-	struct snapshot_version_list * latest_version_entry, * new_version_entry;
+	struct snapshot_version_list * latest_version_entry, * new_version_entry, * version_list;
 	struct snapshot_pte_list * pte_entry;
-	pte_t tmp_master_pte, * debug_pte;
+	pte_t tmp_master_pte;
 	struct page * page;
 	struct page * page_test;
 	struct address_space * mapping;
-	struct radix_tree_root *root;
+	int insert_error;
+	int commit_pte_counter;
 	
-	if (vma && vma->snapshot_pte_list){
-		
-		trace_printk("IN COMMIT \n");
-		struct snapshot_version_list * version_list = (struct snapshot_version_list *)vma->snapshot_pte_list;
+	struct timeval start_commit_tv, end_commit_tv;
+	
+	/*for stats*/
+	do_gettimeofday(&start_commit_tv);
+	commit_pte_counter=0;
+	
+	//trace_printk("PAGE-COUNTER: %d\n", page_counter);
+	
+	if (vma && vma->snapshot_pte_list && do_commit(vma)){
+		//trace_printk("IN COMMIT \n");
+		version_list = (struct snapshot_version_list *)vma->snapshot_pte_list;
 		if (version_list && version_list->list.prev){
 			//get the latest list of modifications that haven't been committed (at the head of the list)
 			latest_version_entry = list_entry(version_list->list.next, struct snapshot_version_list, list);
 			//now, traverse the list
-			trace_printk("IN COMMIT, before the list \n");
+			//trace_printk("IN COMMIT, before the list \n");
+			down(&rwsem_snapversionlist);
 			if (latest_version_entry && latest_version_entry->pte_list){
-				trace_printk("IN COMMIT, do we have a list? \n");
+				//trace_printk("IN COMMIT, do we have a list? \n");
 				list_for_each(pos, &latest_version_entry->pte_list->list){
+					commit_pte_counter++;
 					pte_entry = list_entry(pos, struct snapshot_pte_list, list);
-					print_pte_debug_info(pte_entry->pte);
 					//lets get that page struct that is pointed to by this pte...
 					page = pte_page(*(pte_entry->pte));
 					//get the pre-existing pte value and clear the pte pointer
 					tmp_master_pte = ptep_get_and_clear(vma->vm_mm, pte_entry->addr, pte_entry->pte);
+					//flush the cache
+					flush_tlb_page(vma, pte_entry->addr);
 					//we need to write protect the owner's pte again
 					tmp_master_pte = pte_wrprotect(tmp_master_pte);	
 					//set it back
 					set_pte(pte_entry->pte, tmp_master_pte);
-					//TODO: TLB flush here?!
 					//now lets deal with the page cache, we need to add this page to the page cache if its not in there.
 					//first we get the address_space
 					mapping = vma->vm_file->f_mapping;
@@ -368,56 +579,87 @@ void snapshot_commit(struct vm_area_struct * vma){
                 	SetPageDirty(page);
 					//lets see what's in the page cache for this page's index...
 					page_test = radix_tree_lookup(&mapping->page_tree, page->index);
-					trace_printk("%p %d %p\n", page, (((int )page_test) >> 24), page_test);
-					if (page_test != page){	//TODO: Compiler bug here? Why do I have to do this?
+					if (page_test != page){
 		                if (page_test){
+		                	lock_page(page_test);
 		                	//go ahead and delete from the page cache
 		                	radix_tree_delete(&mapping->page_tree, page_test->index);
-		                	//trace_printk("HUH? %p mapping, %p page tree, %d\n", mapping, mapping->page_tree, page_test);
-		                	trace_printk("DID I REALLY GET IN HERE? %d\n", page_test->index );
-		                	//this page is no longer associated with the mapping, not SURE if this is needed
-							//page_test->mapping = NULL;
+		                	//if it's in the page cache, then it's probably already in the pte cache, try and delete
+		                	delete_old_pte(&vma->snapshot_page_tree, page->index); 
+		                	page_test->mapping=NULL;	                	
+		                	unlock_page(page_test);
+		                	//trace_printk("DELETE REF COUNT IS: %d\n", atomic_read(&page_test->_count));
+		                	if (atomic_read(&page_test->_count) == 1){
+								page_counter--;
+								//trace_printk("PAGE-COUNTER: %d MAKE %p %d\n", page_counter, page_test, atomic_read(&page_test->_count));
+							}
+							else{
+								//trace_printk("PAGE-COUNTER: %d MAKE-NO-SUB %p %d\n", page_counter, page_test, atomic_read(&page_test->_count));
+							}
+		                	
 		                }
-						//spin_unlock_irq(&(mapping->tree_lock));
+retry_insert:
+		                //lets now add our new pte into the pte radix tree
+		                insert_error = radix_tree_insert(&vma->snapshot_page_tree, page->index, pos);
+		                if (insert_error == -EEXIST){
+		                	delete_old_pte(&vma->snapshot_page_tree, page->index);
+		                	goto retry_insert;
+		                }
+		                //if it wasn't an eexist error, then something is wrong and we have a bug
+		                BUG_ON((insert_error && insert_error != -EEXIST));
+		                
 		               	lock_page(page);
 		               	//add it the new page to the page cache
-		               	trace_printk("add it the new page to the page cache, %p, %p, %d, %p %p \n", 
-		               					page, mapping, page->index, page_test,&mapping->page_tree);
-		               	//this may be locked, so we need to unlock it before we go in here
-		               	//if (spin_is_locked(&(mapping->tree_lock))){
-		               	//	spin_unlock_irq(&(mapping->tree_lock));		//TODO: need a long term fix for this
-		               	//}
-		               	//add_to_page_cache_locked(page, mapping,page->index, GFP_KERNEL);
-		               	//trace_printk("PAGE TREE %p\n", mapping);
 		                radix_tree_insert(&mapping->page_tree, page->index, page);
-		                page_cache_get(page);
+		                //page_cache_get(page);
 						page->mapping = mapping;
 		               	//set the radix tree tag that indicates that the page needs to be written back to disk
 		               	radix_tree_tag_set(	&mapping->page_tree,page->index, PAGECACHE_TAG_DIRTY);
-		               	//trace_printk("SETTING THE PAGECACHE_TAG_DIRTY? \n");
+		               	ClearPageSwapBacked(page);
+		               	/*trace_printk("MAPCOUNT In Commit delete: address %08lx, and count is %d and refcount is %d \n", pte_entry->addr, 
+		               			page_mapcount(page), page_count(page));*/
 		               	unlock_page(page);
+		               	
 					}
 				}
 			}
+			
 			/*we need to add a new version list now*/
 			new_version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
 			INIT_LIST_HEAD(&new_version_entry->list);
 			new_version_entry->pte_list = NULL;
-			new_version_entry->ref_count = 0;
-			trace_printk("latest entry is %p\n", new_version_entry);
+			//trace_printk("latest entry is %p\n", new_version_entry);
 			/*add the entry to the list*/
 			list_add(&new_version_entry->list, &version_list->list);
+			/*set the commit time*/
+			do_gettimeofday(&vma->last_commit_time);
+			/*up the revision count*/
+			atomic_inc(&vma->revision_number);
+			up(&rwsem_snapversionlist);
+			/*now we need to wake up anyone that is waiting for a new commit*/
+			wake_up(&vma->snapshot_wq);
 		}
 	}
+	
+	do_gettimeofday(&end_commit_tv);
+	total_commit_time+=elapsed_time_in_microseconds(&start_commit_tv, &end_commit_tv);
+	total_commits++;
+	
+	trace_printk("PAGE-COUNTER: %d\n", page_counter);
+	
+	trace_printk("TOTAL-COMMIT-TIME: %lu AVG-COMMIT-TIME: %lu TOTAL-COMMITS: %lu\n", 
+				total_commit_time, total_commit_time/total_commits, total_commits);
+	//trace_printk("avg. commit latency: %lu\n", elapsed_time_in_microseconds(&start_commit_tv, &end_commit_tv));
+	trace_printk("ptes copied: %d\n", commit_pte_counter);
 }
 
 /*This function's purpose is to be an entry point into our snapshot code from the
 msync system call. If it's a subscriber, then we grab a snapshot. If it's an owner,
 then we need to commit changes*/
-void snapshot_msync(struct vm_area_struct * vma){
+void snapshot_msync(struct vm_area_struct * vma, unsigned long flags){
 	if (is_snapshot_read_only(vma)){
 		//the purpose of this call was to grab a new snapshot	
-		get_snapshot(vma);
+		get_snapshot(vma, flags);
 	}
 	else{
 		//the purpose of this call was to commit something
@@ -426,13 +668,14 @@ void snapshot_msync(struct vm_area_struct * vma){
 }
 
 struct snapshot_version_list * _snapshot_create_version_list(){
-	struct snapshot_version_list * version_list = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
+	struct snapshot_version_list * version_list, * version_entry;
+	
+	version_list = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
 	INIT_LIST_HEAD(&version_list->list);
 	/*now we need to add our first entry*/
-	struct snapshot_version_list * version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
+	version_entry = kmalloc(sizeof(struct snapshot_version_list), GFP_KERNEL);
 	INIT_LIST_HEAD(&version_entry->list);
 	version_entry->pte_list = NULL;
-	version_entry->ref_count = 0;
 	/*add the entry to the list*/
 	list_add(&version_entry->list, &version_list->list);
 	return version_list;
@@ -444,70 +687,134 @@ struct snapshot_pte_list * _snapshot_create_pte_list(){
 	return pte_list;
 }
 
+int init_subscriber (struct vm_area_struct * vma, unsigned long flags){
+	
+	struct vm_area_struct * master_vma;
+	struct commit_prio_list * head;
+	
+	/*get the master (owner) vma*/
+	master_vma = get_master_vma(vma->vm_file, vma);
+	if (master_vma){
+		/*initialize these to zero*/
+		atomic_set(&vma->adapt_ref_count,0);
+		atomic_set(&vma->always_ref_count,0);
+		vma->ewma_adapt = 0;
+		if (flags & COMMIT_DYN){
+			trace_printk("DYNAMIC!!!!\n");
+			/*we need to add a new commit to the list*/
+			head = kmalloc(sizeof(struct commit_prio_list), GFP_KERNEL);
+			INIT_LIST_HEAD(&head->list);
+			/*get the interval from the flags, which is COMMIT_INTERVAL_SHIFT bits to the left*/
+			head->microseconds = vma->ewma_adapt = (flags >> COMMIT_INTERVAL_SHIFT) * 100;	/*TODO: Change ewma_adapt here*/
+			list_add(&head->list,&master_vma->prio_list);
+			trace_printk("the commit_interval is %lu in microseconds\n", head->microseconds);
+		}	
+		else if (flags & COMMIT_ADAPT){
+			trace_printk("ADAPT!!!!\n");
+			atomic_inc(&master_vma->adapt_ref_count);
+			atomic_inc(&vma->adapt_ref_count);
+		}
+		else if (flags & COMMIT_ALWAYS){
+			trace_printk("ALWAYS!!!!\n");
+			atomic_inc(&master_vma->always_ref_count);
+			atomic_inc(&vma->always_ref_count);
+		}
+	}
+	
+	return 1;
+}
+
+
+
 int init_snapshot (struct vm_area_struct * vma){
-	trace_printk("SNAP: in init_snapshot 2\n");
+	struct snapshot_version_list * version_list;
 	/*do we need to initialize the list?*/
 	/*create a new version list node*/
-	struct snapshot_version_list * version_list = _snapshot_create_version_list();
+	version_list = _snapshot_create_version_list();
 	/*setting the ptr on the vma to point at our new list*/
 	vma->snapshot_pte_list = version_list;
-	trace_printk("file is %p, the vma mapping is %p, vma is %p\n", vma->vm_file, vma->vm_file->f_mapping->i_mmap, vma);
+	/*now, lets initialize the radix tree for mapping index to pte*/
+	INIT_RADIX_TREE(&vma->snapshot_page_tree, GFP_KERNEL);
+	/*setup the wait queue used for blocking snapshot requests*/
+	init_waitqueue_head(&vma->snapshot_wq);
+	/*initialize the priority list*/
+	INIT_LIST_HEAD(&vma->prio_list);
+	/*initialize the time since last commit*/
+	vma->last_commit_time.tv_sec = vma->last_commit_time.tv_usec = 0;
+	/*initialize the last snapshot time*/
+	vma->last_snapshot_time.tv_sec = vma->last_snapshot_time.tv_usec = 0;
+	/*set the revision number to zero*/
+	atomic_set(&vma->revision_number,0);
+	atomic_set(&vma->adapt_ref_count,0);
+	atomic_set(&vma->always_ref_count,0);
+	/*initialize the ewma to the defined default*/
+	vma->ewma_adapt = ADAPT_EWMA_DEFAULT_US;
+	
+	snapshot_pf_count=0;
+	page_counter=(vma->vm_end - vma->vm_start)/(1<<12);
+	//page_counter=0;
+	
+	trace_printk("page counter starts at....%d, end %p, start %p\n", page_counter, vma->vm_end, vma->vm_start);
+	
+	total_commit_time=0;
+	total_commits=0;
+	
+	printk(KERN_ALERT "\n\n\n\n\n\n\n\n\n\nSTARTING THIS PARTY\n");
+	
+	return 1;
 }
 
 int do_snapshot_add_pte (struct vm_area_struct * vma, pte_t * orig_pte, pte_t * new_pte, unsigned long address){
-	trace_printk("SNAP: in do_snapshot_add_pte\n");
+	
+	struct prio_tree_iter iter;
+	struct vm_area_struct * tmp_vma;
+	struct snapshot_version_list * version_list, * latest_version_entry, * tmp_version_list;
+	struct snapshot_pte_list * pte_list_entry;
+	struct page * page_debug;
+	
+	//trace_printk("SNAP: in do_snapshot_add_pte\n");
 	/*this should never happen */
 	if (!vma->snapshot_pte_list){
-		trace_printk("SNAP: creating new snapshot pte list\n");
+		//trace_printk("SNAP: creating new snapshot pte list\n");
 		/*create a new version list node*/
-		struct snapshot_version_list * tmp_version_list = _snapshot_create_version_list();
+		tmp_version_list = _snapshot_create_version_list();
 		/*setting the ptr on the vma to point at our new list*/
 		vma->snapshot_pte_list = tmp_version_list;
 	}
 	/*get version list from vma*/
-	struct snapshot_version_list * version_list = vma->snapshot_pte_list;
+	version_list = vma->snapshot_pte_list;
 	/*get the latest version list, AKA the head of the list*/
-	struct snapshot_version_list * latest_version_entry = 
+	latest_version_entry = 
 		list_entry( version_list->list.next, struct snapshot_version_list, list);
 	
 	/*if we are the first page fault, we have to create the pte list*/
-	trace_printk("SNAP: version_list->list.prev %p %p\n", version_list->list.prev,  version_list);
+	//trace_printk("SNAP: version_list->list.prev %p %p\n", version_list->list.prev,  version_list);
 	if (!latest_version_entry->pte_list){
 		latest_version_entry->pte_list = _snapshot_create_pte_list();
 	}
 	
-	/*DEBUGGING!!!!*/
-	int version_list_size=0;
-	struct list_head * pos;
-	list_for_each(pos, &version_list->list){
-		++version_list_size;
-	}
-	trace_printk("version list size is %d\n",version_list_size);
-	
 	/*create the new pte entry*/
-	struct snapshot_pte_list * pte_list_entry = kmalloc(sizeof(struct snapshot_pte_list), GFP_KERNEL);
+	pte_list_entry = kmalloc(sizeof(struct snapshot_pte_list), GFP_KERNEL);
 	INIT_LIST_HEAD(&pte_list_entry->list);
 	pte_list_entry->pte = new_pte;
 	pte_list_entry->addr = address;
-	trace_printk("new_pte pte is : %p, new_pte val is : %lu, orig pte: %p, orig pte val : %lu, pte_list_entry %p, address %08x\n", 
-				new_pte, pte_val(*new_pte), orig_pte, pte_val(*orig_pte),pte_list_entry, address );
 	/*now we need to add the pte to the list */
 	list_add(&pte_list_entry->list, &latest_version_entry->pte_list->list);
 
-	/*DEBUGGING!!!!*/
-	int pte_list_size=0;
-	list_for_each(pos, &latest_version_entry->pte_list->list){
-		++pte_list_size;
-	}
-	trace_printk("pte list size is %d\n",pte_list_size);
-
-
-	struct prio_tree_iter iter;
-	struct vm_area_struct * tmp_vma;
-	trace_printk("the current vma is %p, the mapping is %p\n", vma, &vma->vm_file->f_mapping->i_mmap);
+	/*trace_printk("the current vma is %p, the mapping is %p\n", vma, &vma->vm_file->f_mapping->i_mmap);
 	vma_prio_tree_foreach(tmp_vma, &iter, &vma->vm_file->f_mapping->i_mmap, 0, ULONG_MAX){
 		trace_printk("got vma: %p\n", tmp_vma);
+	}*/
+	
+	page_debug = pte_page(*new_pte);
+	if (page_debug){
+		trace_printk("MAPCOUNT In Add PTE: address %08lx, and count is %d and refcount is %d \n", address, 
+		               			page_mapcount(page_debug), page_count(page_debug));
 	}
+	
+	snapshot_pf_count+=1;
+	page_counter++;
+	return 1;
 }
 
 void myDebugFunction (struct vm_area_struct * vma, struct mm_struct * mm, struct file * f,  const unsigned long address){
@@ -535,9 +842,11 @@ int init_module(void)
 	mmap_snapshot_instance.is_snapshot = is_snapshot;
 	mmap_snapshot_instance.is_snapshot_read_only = is_snapshot_read_only;
 	mmap_snapshot_instance.is_snapshot_master = is_snapshot_master;
-	mmap_snapshot_instance.get_snapshot = snapshot_msync;			//TODO: this function name in the struct should change
+	mmap_snapshot_instance.snapshot_msync = snapshot_msync;			//TODO: this function name in the struct should change
 	mmap_snapshot_instance.init_snapshot = init_snapshot;
 	mmap_snapshot_instance.do_snapshot_add_pte = do_snapshot_add_pte;
+	mmap_snapshot_instance.init_subscriber = init_subscriber;
+	
 	
 	return 0;
 }
@@ -550,7 +859,10 @@ void cleanup_module(void)
 	mmap_snapshot_instance.is_snapshot = NULL;
 	mmap_snapshot_instance.is_snapshot_read_only = NULL;
 	mmap_snapshot_instance.is_snapshot_master = NULL;
-	mmap_snapshot_instance.get_snapshot = NULL;
+	mmap_snapshot_instance.snapshot_msync = NULL;
+	mmap_snapshot_instance.init_snapshot = NULL;
+	mmap_snapshot_instance.do_snapshot_add_pte = NULL;
+	mmap_snapshot_instance.init_subscriber = NULL;
 	
 	printk(KERN_INFO "Goodbye world 1.\n");
 	

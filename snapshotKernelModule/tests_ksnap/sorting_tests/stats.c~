@@ -1,0 +1,5 @@
+
+int latency_counter_add(struct stats * stats, int latency){
+  stats->total_latency += latency;
+  stats->latency_ops++;
+}

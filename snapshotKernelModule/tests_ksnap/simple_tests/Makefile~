@@ -1,0 +1,4 @@
+
+
+temporary_test: main.c
+	gcc -std=gnu99 -o temporary_test main.c -lsnaptest -lrt

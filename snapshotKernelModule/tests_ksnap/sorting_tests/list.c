@@ -1,0 +1,164 @@
+
+#include "list.h"
+#include "mm.h"
+
+void __add_or_remove(void * list, int key){
+  struct sorted_list_entry * target_entry;
+  struct sorted_list_head * head = list;
+  if (head->list_size == 0 || (head->list_size < head->max_list_size && head->direction == LIST_DIRECTION_UP)){
+    target_entry = MM_malloc(sizeof(struct sorted_list_entry));
+    if (!target_entry){
+      perror("out of memory :( \n");
+    }
+    target_entry->key = key;
+  
+    CIRCLEQ_INSERT_HEAD(head, target_entry, entry);
+    head->list_size++;
+    if (head->list_size % 1000 == 0){
+      //printf("new size is ... %d max size %d, size of entry %d\n", head->list_size, head->max_list_size, sizeof(struct sorted_list_entry));
+    }
+  }
+  else if (head->list_size > 1 && head->direction == LIST_DIRECTION_DOWN){
+    if (!CIRCLEQ_EMPTY(head)){
+      target_entry = CIRCLEQ_LAST(head);
+      CIRCLEQ_REMOVE(head, target_entry, entry);
+      MM_free(target_entry);
+      head->list_size--;
+      //printf("new size is ... %d ", head->list_size);
+      if (head->list_size % 1000 == 0){
+	//printf("new size is ... %d max size %d, size of entry %d\n", head->list_size, head->max_list_size, sizeof(struct sorted_list_entry));
+      }
+    }
+  }
+  else if ((head->list_size == 1 && head->direction==LIST_DIRECTION_DOWN) || 
+	   (head->list_size == head->max_list_size && head->direction==LIST_DIRECTION_UP)){
+    //printf("turn around...\n");
+    head->direction = (head->direction == LIST_DIRECTION_UP) ? LIST_DIRECTION_DOWN : LIST_DIRECTION_UP;
+  }
+  else{
+    printf("huh?\n");
+  }
+  
+}
+
+//like the classical functional programming "map". Traverse the data structure and invoke the map_function on each node
+void sorted_list_map(void  * list, void (*map_function)(int key, void * data), void * data){
+  struct sorted_list_head * head = list;
+  struct sorted_list_entry * current_entry;
+  printf("in map...\n");
+  CIRCLEQ_FOREACH(current_entry, head, entry){
+    printf("for each....%d\n", current_entry->key);
+    map_function(current_entry->key, data);
+  }
+}
+
+//search the list for this key
+void * sorted_list_search(void * list, int key){
+  return NULL;
+}
+
+//insert into the list
+int sorted_list_insert(void * list, int key){
+   __add_or_remove(list, key);
+  /*
+  struct sorted_list_head * head = list;
+  struct sorted_list_entry * new_entry = MM_malloc(sizeof(struct sorted_list_entry));
+  new_entry->key = key;
+  struct sorted_list_entry * current_entry;
+  
+  CIRCLEQ_INSERT_HEAD(head, new_entry, entry);
+
+  current_entry = ((head)->cqh_first);
+  CIRCLEQ_FOREACH(current_entry, head, entry){
+    if (current_entry && current_entry->key > key){
+      break;
+    }
+  }
+  
+  if (current_entry != head){
+    CIRCLEQ_INSERT_BEFORE(head, current_entry, new_entry, entry);
+  }
+  else if (CIRCLEQ_EMPTY(head)){
+    CIRCLEQ_INSERT_HEAD(head, new_entry, entry);
+  }
+  else{
+    CIRCLEQ_INSERT_TAIL(head, new_entry, entry);
+    }*/
+}
+
+//delete a node from the list
+void * sorted_list_delete(void * list, int key){
+  
+  __add_or_remove(list, key);
+  return NULL;
+  /*struct sorted_list_head * head = list;
+  struct sorted_list_entry * current_entry;
+  struct sorted_list_entry * target_entry = NULL;
+
+  if (!CIRCLEQ_EMPTY(head)){
+    target_entry = CIRCLEQ_LAST(head);
+    CIRCLEQ_REMOVE(head, target_entry, entry);
+    return target_entry;
+  }
+  else{
+    return NULL;
+  }
+
+  CIRCLEQ_FOREACH(current_entry, head, entry){
+    if (current_entry && current_entry->key == key){
+      target_entry = current_entry;
+      break;
+    }
+  }
+
+  if (target_entry){
+    CIRCLEQ_REMOVE(head, target_entry, entry);
+    return target_entry;
+  }
+  else{int sorted_list_insert(void * list, int key){
+   __add_or_remove(list, key);
+  /*
+  struct sorted_list_head * head = list;
+  struct sorted_list_entry * new_entry = MM_malloc(sizeof(struct sorted_list_entry));
+  new_entry->key = key;
+  struct sorted_list_entry * current_entry;
+  
+  CIRCLEQ_INSERT_HEAD(head, new_entry, entry);
+
+  current_entry = ((head)->cqh_first);
+  CIRCLEQ_FOREACH(current_entry, head, entry){
+    if (current_entry && current_entry->key > key){
+      break;
+    }
+  }
+  
+  if (current_entry != head){
+    CIRCLEQ_INSERT_BEFORE(head, current_entry, new_entry, entry);
+  }
+  else if (CIRCLEQ_EMPTY(head)){
+    CIRCLEQ_INSERT_HEAD(head, new_entry, entry);
+  }
+  else{
+    CIRCLEQ_INSERT_TAIL(head, new_entry, entry);
+    }
+}
+
+    return NULL;
+    }
+    return NULL;*/
+}
+
+//init the data structure
+void * sorted_list_init(int max_size_in_bytes){
+  struct sorted_list_head * head = MM_malloc(sizeof(struct sorted_list_head));
+  head->list_size=0;
+  head->max_list_size=options.segment_size_in_bytes/((sizeof(struct rbtdata)+30);
+
+    //max_size_in_bytes/(sizeof(struct sorted_list_entry)+30) - (((1<<12)*20)/sizeof(struct sorted_list_entry)+30);
+  head->direction = LIST_DIRECTION_UP;
+  printf("max size %d, bytes %d, size of entry %d %d %d\n", 
+	 head->max_list_size, max_size_in_bytes, sizeof(struct sorted_list_entry), (max_size_in_bytes/sizeof(struct sorted_list_entry)),
+	 (((1<<12)*5)/sizeof(struct sorted_list_entry)));
+  CIRCLEQ_INIT(head);
+  return head;
+}

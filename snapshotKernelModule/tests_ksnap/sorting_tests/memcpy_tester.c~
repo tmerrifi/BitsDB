@@ -1,0 +1,47 @@
+#include "rbtdata.h"
+#include "rbtree.h"
+#include "sort_test.h"
+#include "time_util.h"
+#include "ksnap.h"
+#include "ftrace.h"
+#include "subscribers.h"
+#include "memcpy_shm.h"
+#include "stats.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/queue.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
+#include <string.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/wait.h
+
+void subscribers_memcpy(ksnap * snap, ksnap_test_subs_profile * test_profile){
+  
+  
+
+}
+
+
+int main(){
+  
+  ksnap * snap = ksnap_open(5000, "my_test_segment", COMMIT_ALWAYS, 100, KSNAP_OWNER, (void *)0xA0000000);
+  
+  ksnap_test_subs_profile * test_profile = malloc(sizeof(ksnap_test_subs_profile));
+  test_profile->action = subscribers_memcpy;
+  test_profile->action = subscribers_memcpy;
+  test_profile->action_data = tester;
+  test_profile->desired_address = (void *)0xB0000000;
+  return test_profile;
+
+
+
+  ksnap_test_subs_init(options.sub_number, 0, snapshot->size_of_segment, 
+		       SORT_TEST_NAME(options), sub_profile);
+
+}

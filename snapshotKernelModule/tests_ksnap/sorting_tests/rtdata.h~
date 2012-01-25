@@ -1,0 +1,12 @@
+
+
+struct rtdata{
+  struct rb_node rbn;
+  int number;
+};
+
+
+struct mytype *my_search(struct rb_root *root, char *string);
+
+
+int my_insert(struct rb_root *root, rtdata * data);

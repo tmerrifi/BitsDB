@@ -1,0 +1,44 @@
+
+#include "rtdata.h"
+#include "rtdata.c"
+
+struct rtdata * rtdata_search(struct rb_root *root, int key){
+  struct rb_node *node = root->rb_node;
+
+  while (node) {
+    struct rtdata *data = container_of(node, struct rtdata, node);
+    int result=data->key;
+    if (key < result)
+      node = node->rb_left;
+    else if (key > result)
+      node = node->rb_right;
+    else
+      return data;
+  }
+  return NULL;
+}
+
+
+int rtdata_insert(struct rb_root *root, rtdata * data){
+
+  struct rb_node **new = &(root->rb_node), *parent = NULL;
+	
+  /* Figure out where to put new node */
+  while (*new) {
+    struct rtdata *this = container_of(*new, struct rtdata, node);
+    int result = this->key;
+    parent = *new;
+    if (data->key < result)
+      new = &((*new)->rb_left);
+    else if (data->key > result)
+      new = &((*new)->rb_right);
+    else
+      return FALSE;
+  }
+  /* Add new node and rebalance tree. */
+  rb_link_node(&data->node, parent, new);
+  rb_insert_color(&data->node, root);
+
+  return TRUE;
+
+}

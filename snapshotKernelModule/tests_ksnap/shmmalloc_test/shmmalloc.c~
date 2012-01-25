@@ -1,0 +1,7 @@
+
+#include <mm.h>
+
+int main(){
+
+  MM_create(1000, "simple_test");
+}

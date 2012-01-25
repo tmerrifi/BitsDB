@@ -1,0 +1,128 @@
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <semaphore.h>
+#include <mhash.h>
+
+#include "ksnap.h"
+#include "ftrace.h"
+#include "ksnap_test_sub.h"
+#include "subscribers.h"
+#include "time_util.h"
+#include "sort_test.h"
+#include "memcpy_shm.h"
+#include "stats.h"
+
+void __do_checksum(int number, void * checksum){
+  unsigned char * num_ptr = (unsigned char *)&number;
+  printf("hi...");
+  mhash((MHASH)checksum, num_ptr, sizeof(int));
+}
+
+void __print_checksum(unsigned char * hash){
+  printf("Hash:");
+  for (int i = 0; i < mhash_get_block_size(MHASH_CRC32); i++) {
+    printf("%.2x", hash[i]);
+  }
+}
+
+int __experiment_ended(struct timespec * time_begin, int total_time){
+  struct timespec current_time; 
+  clock_gettime(CLOCK_REALTIME, &current_time);
+  unsigned long diff = time_util_time_diff(time_begin, &current_time);
+  unsigned long secs = diff / 1000000;
+  return secs > total_time;
+}
+
+void subscribers_memcpy(ksnap * snap, ksnap_test_subs_profile * test_profile){
+  struct timespec time_begin;
+  clock_gettime(CLOCK_REALTIME, &time_begin);
+  struct timespec * sleep_timer = time_util_create_timespec(test_profile->sleep_ms);
+  struct sort_tester * tester = (struct sort_tester *)test_profile->action_data;
+  struct memcpy_shm * memcpy_shm =  memcpy_shm_client_open(snap);
+  MHASH td;
+  char * hash;
+  struct stats * stats = stats_init();
+  struct timespec t1, t2;
+
+  while (!__experiment_ended(&time_begin, test_profile->total_time)){
+    clock_gettime(CLOCK_REALTIME, &t1);
+    memcpy_shm_client_update(memcpy_shm);
+    td = mhash_init(MHASH_CRC32);
+    printf("running the query\n\n\n");
+    sort_tester_map(tester, __do_checksum, td);
+    printf("done runnging the query\n");
+    hash=mhash_end(td);
+    __print_checksum(hash);
+    clock_gettime(CLOCK_REALTIME, &t2);
+    stats_latency_counter_add(stats, time_util_time_diff(&t1, &t2));
+    stats_total_ops_inc(stats);
+    nanosleep(sleep_timer, NULL);
+  }
+  printf("made it out of subscriber\n");
+  stats_output(stats, "stats_subscriber.txt");
+  exit(1);
+}
+
+void subscribers_global_locking(ksnap * snap,  ksnap_test_subs_profile * test_profile){
+  struct timespec time_begin;
+  clock_gettime(CLOCK_REALTIME, &time_begin);
+  struct timespec * sleep_timer = time_util_create_timespec(test_profile->sleep_ms);
+  struct sort_tester * tester = (struct sort_tester *)test_profile->action_data;
+
+  char mutex_name[100];
+  sprintf(mutex_name, "%s_global.sem", snap->name);
+  sem_t * mutex = sem_open(mutex_name,0,0644,1);
+  MHASH td;
+  char * hash;
+  struct stats * stats = stats_init();
+  struct timespec t1, t2;
+
+  while (!__experiment_ended(&time_begin, test_profile->total_time)){
+    clock_gettime(CLOCK_REALTIME, &t1);
+    sem_wait(mutex);
+    td = mhash_init(MHASH_CRC32);
+    //printf("\ntrying a checksum...locking, size is %d\n", *tester->sds->size);
+    sort_tester_map(tester, __do_checksum, td);
+    sem_post(mutex);
+    hash=mhash_end(td);
+    //__print_checksum(hash);
+    clock_gettime(CLOCK_REALTIME, &t2);
+    stats_latency_counter_add(stats, time_util_time_diff(&t1, &t2));
+    stats_total_ops_inc(stats);
+    nanosleep(sleep_timer, NULL);
+  }
+  stats_output(stats, "stats_subscriber.txt");
+  printf("subscriber done\n");
+  exit(1);
+}
+
+void subscribers_ksnap(ksnap * snap,  ksnap_test_subs_profile * test_profile){
+  struct timespec time_begin;
+  clock_gettime(CLOCK_REALTIME, &time_begin);
+  struct timespec * sleep_timer = time_util_create_timespec(test_profile->sleep_ms);
+  struct sort_tester * tester = (struct sort_tester *)test_profile->action_data;
+  MHASH td;
+  char * hash;
+  struct stats * stats = stats_init();
+  struct timespec t1, t2;
+
+  printf("initializing a subscriber...tester is %p\n", tester);
+  while (!__experiment_ended(&time_begin, test_profile->total_time)){
+    clock_gettime(CLOCK_REALTIME, &t1);
+    ksnap_update(snap, KSNAP_NO_DEBUG);
+    //printf("\n\n\ntrying a checksum...size is %d\n", *tester->sds->size);
+    td = mhash_init(MHASH_CRC32);
+    sort_tester_map(tester, __do_checksum, td);
+    //printf("\n\n\ndone with checksum\n");
+    hash=mhash_end(td);
+    //__print_checksum(hash);
+    clock_gettime(CLOCK_REALTIME, &t2);
+    stats_latency_counter_add(stats, time_util_time_diff(&t1, &t2));
+    stats_total_ops_inc(stats);
+    nanosleep(sleep_timer, NULL);
+  }
+  stats_output(stats, "stats_subscriber.txt");
+  exit(1);
+}

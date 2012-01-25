@@ -1,0 +1,8 @@
+
+#ifndef MEMCPY_SHM_H
+#define MEMCPY_SHM_H
+
+struct memcpy_shm{
+  void * segment;
+  ksnap * snapshot;
+};

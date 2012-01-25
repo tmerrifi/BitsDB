@@ -1,0 +1,27 @@
+
+OBJECT_SIZE=200
+
+all: tester
+
+tester: tester.c subscribers.o stats.o
+	gcc -DOBJ_SIZE=$(OBJECT_SIZE) -g -std=gnu99 -o tester tester.c stats.o sorttest.o list.o rbtdata.o rbtree.o subscribers.o -lmm -lrt -lsnaptest -lpthread -lmhash
+
+subscribers.o: subscribers.h sorttest.o
+	gcc -DOBJ_SIZE=$(OBJECT_SIZE) -g --std=gnu99 -o subscribers.o -c subscribers.c
+
+stats.o: stats.h stats.c
+	gcc -g --std=gnu99 -o stats.o -c stats.c
+
+sorttest.o: sort_test.c sort_test.h rbtdata.o list.o
+	gcc -DOBJ_SIZE=$(OBJECT_SIZE) -g --std=gnu99 -o sorttest.o -c sort_test.c
+
+list.o: list.c list.h
+	gcc -DOBJ_SIZE=$(OBJECT_SIZE) -g --std=gnu99 -o list.o -c list.c
+
+rbtdata.o: rbtdata.c rbtdata.h rbtree.o
+	gcc -DOBJ_SIZE=$(OBJECT_SIZE) -g --std=gnu99 -o rbtdata.o -c rbtdata.c
+
+rbtree.o: rbtree.c rbtree.h
+	gcc -g --std=gnu99 -o rbtree.o -c rbtree.c
+clean:
+	rm *.o tester;
